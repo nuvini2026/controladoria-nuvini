@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Financeiro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --m:#143A79;--r:#3C70DC;--c:#03CEFE;--cl:#D6F4FF;--g:#737373;
+  --bg:#EEF2FA;--card:#fff;--bdr:#E2E8F2;
+  --ok:#10B981;--err:#EF4444;--warn:#F59E0B;--pur:#8B5CF6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:#1e293b;min-height:100vh}
+
+/* ── HEADER ── */
+#hdr{background:var(--m);color:#fff;display:flex;align-items:center;gap:10px;padding:0 24px;height:58px;position:-webkit-sticky;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+#co-name{font-size:15px;font-weight:800;letter-spacing:.3px;white-space:nowrap}
+#co-tabs{display:flex;gap:4px;flex-shrink:0}
+.co-tab{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;transition:.15s}
+.co-tab.active{background:var(--r);border-color:var(--r)}
+.co-tab:hover{background:rgba(255,255,255,.2)}
+.vd{width:1px;height:28px;background:rgba(255,255,255,.2);flex-shrink:0}
+.fg{display:flex;align-items:center;gap:3px;flex-shrink:0}
+.fl{font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.6px;margin-right:2px;white-space:nowrap}
+.fbtn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;transition:.15s;white-space:nowrap}
+.fbtn:hover{background:rgba(255,255,255,.2)}
+.fbtn.active{background:var(--c);border-color:var(--c);color:var(--m)}
+.fbtn:disabled{opacity:.35;cursor:default}
+/* ytd toggle */
+.ytd-wrap{display:flex;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.2);flex-shrink:0}
+.ytd-wrap button{background:rgba(255,255,255,.1);border:none;color:#fff;padding:3px 9px;cursor:pointer;font-size:10px;font-weight:700;transition:.15s}
+.ytd-wrap button.active{background:var(--c);color:var(--m)}
+.ytd-wrap button:hover:not(.active){background:rgba(255,255,255,.2)}
+.sp{flex:1}
+#plbl{font-size:11px;background:rgba(255,255,255,.15);border-radius:12px;padding:2px 10px;white-space:nowrap;flex-shrink:0}
+#up-btn{background:var(--c);border:none;color:var(--m);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0;line-height:1}
+#up-btn:hover{transform:scale(1.12);background:#fff}
+
+/* ── LOADING ── */
+#loading{display:none;position:fixed;inset:0;background:rgba(20,58,121,.7);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#fff}
+#loading.on{display:flex}
+.spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.3);border-top-color:#03CEFE;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── EMPTY ── */
+#empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 58px);gap:12px;color:var(--g)}
+.ei{font-size:60px;opacity:.35}
+.et{font-size:22px;font-weight:800;color:var(--m)}
+.es{font-size:13px;opacity:.8}
+.ua{border:2px dashed var(--r);border-radius:14px;padding:28px 48px;text-align:center;cursor:pointer;transition:.2s;margin-top:10px;color:var(--m);font-weight:600;font-size:14px}
+.ua:hover{background:var(--cl);border-color:var(--c);transform:scale(1.01)}
+.ua-sub{font-size:11px;color:var(--g);margin-top:5px;font-weight:400}
+
+/* ── MAIN ── */
+#dash{padding:20px 28px;max-width:1600px;margin:0 auto}
+.sec{margin-bottom:18px}
+.card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.ct{font-size:12px;font-weight:800;color:var(--m);text-transform:uppercase;letter-spacing:.5px}
+.cs{font-size:11px;color:var(--g);margin-top:2px;margin-bottom:12px}
+.r21{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.r11{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.r12{display:grid;grid-template-columns:1fr 2fr;gap:16px}
+
+/* ── KPIs ── */
+.kg{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.kpi{background:var(--card);border-radius:12px;padding:18px 16px;box-shadow:0 1px 5px rgba(0,0,0,.07);border-top:3px solid var(--r)}
+.kpi.k1{border-top-color:var(--m)}
+.kpi.k3{border-top-color:var(--c)}
+.kpi.k5{border-top-color:var(--ok)}
+.kpi.kneg{border-top-color:var(--err)!important}
+.kl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--g);font-weight:700;margin-bottom:5px}
+.kv{font-size:20px;font-weight:800;color:var(--m);line-height:1.2}
+.kv.neg{color:var(--err)}
+.ksub{font-size:11px;color:var(--g);margin-top:2px}
+.kbadges{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.kb{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+.kb.pos{background:#D1FAE5;color:#065F46}
+.kb.neg{background:#FEE2E2;color:#991B1B}
+.kb.neu{background:var(--cl);color:var(--m)}
+
+/* ── DRE TABLE ── */
+.dt{width:100%;border-collapse:collapse;font-size:12px}
+.dt th{background:var(--m);color:#fff;padding:8px 10px;text-align:right;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+.dt th:first-child{text-align:left;border-radius:6px 0 0 0;width:42%}
+.dt th:last-child{border-radius:0 6px 0 0}
+.dt td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--bdr)}
+.dt td:first-child{text-align:left}
+.dr-s td{color:#5a6a82;font-size:11px;background:#fafbfd}
+.dr-s td:first-child{padding-left:18px}
+.dr-t td{font-weight:700;color:var(--m);background:#EEF3FF;border-top:2px solid #C7D7FF;border-bottom:2px solid #C7D7FF}
+.dr-hl td{font-weight:800;background:var(--m);color:#fff}
+.dr-eb td{font-weight:700;background:#EFF6FF;color:#1E40AF}
+.dr-sec td{background:#F8F9FC;color:var(--g);font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;padding:5px 10px;border:none}
+.tr{color:var(--err)!important}
+.tg{color:var(--ok)!important}
+.tw{overflow-x:auto;margin-top:6px}
+
+/* ── DETRACTORS ── */
+.det-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media(max-width:900px){.det-grid{grid-template-columns:1fr}}
+.det-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bdr);transition:.12s}
+.det-row:hover{background:#f0f6ff}
+.det-rk{width:20px;height:20px;border-radius:50%;background:var(--m);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.det-rk.top3{background:var(--r)}
+.det-info{flex:1;min-width:0}
+.det-nm{font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.det-cat{font-size:10px;color:var(--g)}
+.det-bw{width:55px;flex-shrink:0}
+.det-bar{height:4px;background:linear-gradient(90deg,var(--r),var(--c));border-radius:2px}
+.det-val{text-align:right;flex-shrink:0;min-width:80px}
+.det-amt{font-size:12px;font-weight:700;color:var(--m)}
+.det-pct{font-size:10px;color:var(--g)}
+
+/* ── INDICATORS ── */
+.indg{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ind{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center;border-bottom:3px solid var(--bdr)}
+.ind.ok{border-bottom-color:var(--ok)}
+.ind.err{border-bottom-color:var(--err)}
+.ind.warn{border-bottom-color:var(--warn)}
+.ind.neu{border-bottom-color:var(--r)}
+.iv{font-size:28px;font-weight:800;color:var(--m);line-height:1}
+.il{font-size:10px;color:var(--g);margin-top:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+
+/* ── SECTION HEADER ── */
+.sh{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sh-title{font-size:13px;font-weight:800;color:var(--m);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.sh-line{flex:1;height:1px;background:var(--bdr)}
+
+@media(max-width:1200px){
+  .kg{grid-template-columns:repeat(3,1fr)}
+  .r21,.r11,.r12{grid-template-columns:1fr}
+  .indg{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:700px){
+  #dash{padding:12px}
+  .kg{grid-template-columns:repeat(2,1fr)}
+  #hdr{flex-wrap:wrap;height:auto;padding:8px 14px;gap:6px}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading"><div class="spinner"></div><div>Processando arquivo...</div></div>
+
+<!-- Header -->
+<header id="hdr">
+  <div id="co-name">Dashboard Financeiro</div>
+  <div id="co-tabs"></div>
+  <div class="vd"></div>
+  <div class="fg"><span class="fl">Ano</span><div id="yr-btns" class="fg"></div></div>
+  <div class="vd"></div>
+  <div class="fg">
+    <span class="fl">Período</span>
+    <div class="ytd-wrap">
+      <button id="btn-mes" class="active" onclick="setYtd(false)">Mensal</button>
+      <button id="btn-ytd" onclick="setYtd(true)">Acumulado</button>
+    </div>
+    <div id="mo-btns" class="fg"></div>
+  </div>
+  <div class="sp"></div>
+  <span id="plbl"></span>
+  <label id="up-btn" title="Adicionar arquivo(s)">+
+    <input type="file" id="file-in" accept=".xlsx,.xls" multiple style="display:none">
+  </label>
+</header>
+
+<!-- Empty state -->
+<div id="empty">
+  <div class="ei">📊</div>
+  <div class="et">Dashboard Financeiro</div>
+  <div class="es">Clique em <strong>+</strong> no canto superior direito, ou arraste um arquivo abaixo</div>
+  <label class="ua" for="file-in">
+    📎 Selecionar arquivo(s) Excel
+    <div class="ua-sub">Formato esperado: razão contábil com colunas Ano, Mês, Grupo, Subgrupo, Movimento, Descrição</div>
+  </label>
+</div>
+
+<!-- Dashboard -->
+<main id="dash" style="display:none">
+
+  <!-- KPIs -->
+  <div class="sec">
+    <div id="kpis" class="kg"></div>
+  </div>
+
+  <!-- Revenue + Margins -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Análise de Receita</span><div class="sh-line"></div></div>
+    <div class="r21">
+      <div class="card">
+        <div class="ct">Receita Recorrente vs Não Recorrente</div>
+        <div class="cs">Evolução mensal — ano selecionado</div>
+        <div style="position:relative;height:265px"><canvas id="c-rev"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Evolução de Margens</div>
+        <div class="cs">% sobre Receita Líquida — mensal</div>
+        <div style="position:relative;height:265px"><canvas id="c-mgn"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRE + Bridge -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">DRE & Análise Bridge</span><div class="sh-line"></div></div>
+    <div class="r11">
+      <div class="card">
+        <div class="ct">Demonstração do Resultado — DRE</div>
+        <div class="cs" id="dre-lbl"></div>
+        <div class="tw" id="dre-tbl"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Bridge: Receita Líquida → EBITDA</div>
+        <div class="cs">Waterfall dos componentes operacionais</div>
+        <div style="position:relative;height:290px"><canvas id="c-brg"></canvas></div>
+        <div class="ct" style="margin-top:16px">Bridge: EBIT → Lucro Líquido</div>
+        <div class="cs">Resultado financeiro, LAIR e impostos</div>
+        <div style="position:relative;height:195px"><canvas id="c-brg2"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Costs -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Custos e Despesas</span><div class="sh-line"></div></div>
+    <div class="r12">
+      <div class="card">
+        <div class="ct">Composição — período</div>
+        <div class="cs">Distribuição por natureza</div>
+        <div style="position:relative;height:265px"><canvas id="c-donut"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Evolução Mensal de Custos</div>
+        <div class="cs">Ano selecionado — empilhado por natureza</div>
+        <div style="position:relative;height:265px"><canvas id="c-costs"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Detractors -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Principais Detratores do Resultado</span><div class="sh-line"></div></div>
+    <div class="card">
+      <div class="ct">Top 16 categorias por valor — período selecionado</div>
+      <div class="cs">Ranking por subgrupo contábil; % calculado sobre Receita Líquida</div>
+      <div id="det-content"></div>
+    </div>
+  </div>
+
+  <!-- Indicators -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Indicadores Econômico-Financeiros</span><div class="sh-line"></div></div>
+    <div id="indicators" class="indg"></div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTES
+// ═══════════════════════════════════════════════
+const C={m:'#143A79',r:'#3C70DC',c:'#03CEFE',cl:'#D6F4FF',g:'#737373',
+  ok:'#10B981',err:'#EF4444',warn:'#F59E0B',pur:'#8B5CF6',org:'#F97316',teal:'#0891B2'};
+const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ═══════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════
+const S={companies:{},co:null,year:null,month:null,ytd:false,ch:{}};
+
+// ═══════════════════════════════════════════════
+// FORMATAÇÃO
+// ═══════════════════════════════════════════════
+const fmtR=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);
+const fmtK=v=>{
+  const a=Math.abs(v);
+  if(a===0) return 'R$ 0';
+  if(a>=1e6) return 'R$ '+(v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'M';
+  if(a>=1e3) return 'R$ '+(v/1e3).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0})+'k';
+  return fmtR(v);
+};
+const fmtP=v=>!isFinite(v)?'—':(v*100).toFixed(1)+'%';
+const yoy=(c,p)=>{if(!p||p===0)return null;const d=(c-p)/Math.abs(p);return{d,s:(d>=0?'▲ ':' ▼ ')+Math.abs(d*100).toFixed(1)+'%',pos:d>=0};};
+
+// ═══════════════════════════════════════════════
+// NORMALIZAÇÃO DE NOMES DE COLUNAS
+// ═══════════════════════════════════════════════
+const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+
+function getField(row,aliases){
+  for(const k of Object.keys(row)){
+    const nk=norm(k);
+    for(const a of aliases) if(norm(a)===nk) return row[k];
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+// PARSE EXCEL
+// ═══════════════════════════════════════════════
+function parseFile(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:true});
+        const data=rows.map(row=>{
+          const g=(...a)=>getField(row,a);
+          return{
+            ano:parseInt(g('Ano','ano')||0)||null,
+            mes:parseInt(g('Mês','Mes','mes')||0)||null,
+            grupo:String(g('Grupo','grupo')||'').trim(),
+            subgrupo:String(g('Subgrupo','subgrupo')||'').trim(),
+            mov:parseFloat(g('Movimento','movimento')||0)||0,
+            desc:String(g('Descrição','Descricao','descricao')||'').trim(),
+          };
+        }).filter(r=>r.ano&&r.mes&&r.grupo);
+        // Nome da empresa a partir do nome do arquivo
+        let name=file.name
+          .replace(/\.xlsx?$/i,'')
+          .replace(/[_]/g,' ')
+          .replace(/\s*\([\d]+\)\s*$/,'')
+          .replace(/\s*(razao|razão|acumulado|geral|2024|2025|2026)\s*/gi,' ')
+          .replace(/\s+/g,' ').trim()||'Empresa';
+        res({name,data});
+      }catch(err){rej(err);}
+    };
+    r.onerror=rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DA DRE
+// ═══════════════════════════════════════════════
+function calcDRE(data,year,month,ytd){
+  const d=data.filter(r=>{
+    if(r.ano!==year) return false;
+    if(ytd&&month!==null) return r.mes<=month;
+    if(month!==null) return r.mes===month;
+    return true;
+  });
+
+  const sumG=(grps,sgFn=null)=>d
+    .filter(r=>grps.includes(r.grupo)&&(!sgFn||sgFn(r.subgrupo)))
+    .reduce((s,r)=>s+r.mov,0);
+
+  const GRec='RECEITA OPERACIONAL LÍQUIDA';
+  const recorrente =-sumG([GRec],sg=>sg==='RECEITA COM SERVIÇOS - RECORRENTES');
+  const naoRecorr  =-sumG([GRec],sg=>sg==='RECEITA COM SERVIÇOS - NÃO RECORRENTES');
+  const naoFat     =-sumG([GRec],sg=>sg==='RECEITA COM SERVIÇOS - NÃO FATURADAS');
+  const receitaLiq =-sumG([GRec]);
+  const recBruta   =recorrente+naoRecorr+(naoFat<0?0:naoFat); // only count positive unbilled
+  const deducoes   =Math.max(0,recBruta-receitaLiq);
+
+  const cpv    =sumG(['CUSTO DOS SERVIÇOS PRESTADOS']);
+  const lBruto =receitaLiq-cpv;
+  const desCom =sumG(['Despesas comerciais']);
+  const desGA  =sumG(['Despesas gerais e administrativas']);
+
+  // D&A: subgrupos com DEPRECIA ou AMORTIZA dentro dos grupos de resultado
+  const DA_GRPS=['CUSTO DOS SERVIÇOS PRESTADOS','Despesas gerais e administrativas','Despesas comerciais'];
+  const da=d.filter(r=>DA_GRPS.includes(r.grupo)&&(r.subgrupo.includes('DEPRECIA')||r.subgrupo.includes('AMORTIZA')||r.subgrupo.includes('DEPREC.'))).reduce((s,r)=>s+r.mov,0);
+
+  const ebit  =lBruto-desCom-desGA;
+  const ebitda=ebit+da;
+
+  const recFin=-sumG(['Receitas financeiras']);
+  const desFin= sumG(['Despesas financeiras']);
+  const resFin =recFin-desFin;
+  const lair   =ebit+resFin;
+
+  const ir=sumG([
+    'Imposto de renda e contribuição social - correntes',
+    'Imposto de renda e contribuição social - Diferidos'
+  ]);
+  const lLiq=lair-ir;
+
+  const pct=v=>receitaLiq?v/receitaLiq:0;
+  return{
+    receitaLiq,recBruta,deducoes,recorrente,naoRecorr,naoFat,
+    cpv,lBruto,desCom,desGA,da,ebit,ebitda,
+    recFin,desFin,resFin,lair,ir,lLiq,
+    mgBruta:pct(lBruto),mgEBITDA:pct(ebitda),mgEBIT:pct(ebit),mgLiq:pct(lLiq),
+    pctRec:recBruta>0?recorrente/recBruta:0,
+  };
+}
+
+function calcMonthly(data,year){
+  return MN.map((_,i)=>calcDRE(data,year,i+1,false));
+}
+
+// ═══════════════════════════════════════════════
+// TOP DETRATORES
+// ═══════════════════════════════════════════════
+function topDet(data,year,month,ytd){
+  const d=data.filter(r=>{
+    if(r.ano!==year) return false;
+    if(ytd&&month!==null) return r.mes<=month;
+    if(month!==null) return r.mes===month;
+    return true;
+  });
+  const EXP=['CUSTO DOS SERVIÇOS PRESTADOS','Despesas comerciais','Despesas gerais e administrativas','Despesas financeiras'];
+  const m={};
+  d.filter(r=>EXP.includes(r.grupo)&&r.mov>0).forEach(r=>{
+    if(!m[r.subgrupo]) m[r.subgrupo]={sg:r.subgrupo,grp:r.grupo,v:0};
+    m[r.subgrupo].v+=r.mov;
+  });
+  return Object.values(m).sort((a,b)=>b.v-a.v).slice(0,16);
+}
+
+// ═══════════════════════════════════════════════
+// DESTROY CHART
+// ═══════════════════════════════════════════════
+const dc=id=>{if(S.ch[id]){S.ch[id].destroy();delete S.ch[id];}};
+
+// ═══════════════════════════════════════════════
+// KPI CARDS
+// ═══════════════════════════════════════════════
+function renderKPIs(dre,prev){
+  const items=[
+    {l:'Receita Líquida',   v:dre.receitaLiq, pv:prev?.receitaLiq,  sub:fmtP(dre.pctRec)+' recorrente', mg:null, cls:'k1'},
+    {l:'Lucro Bruto',       v:dre.lBruto,     pv:prev?.lBruto,      sub:'',                              mg:dre.mgBruta,   cls:''},
+    {l:'EBITDA',            v:dre.ebitda,     pv:prev?.ebitda,      sub:'',                              mg:dre.mgEBITDA,  cls:'k3'},
+    {l:'EBIT',              v:dre.ebit,       pv:prev?.ebit,        sub:'',                              mg:dre.mgEBIT,    cls:''},
+    {l:'Lucro Líquido',     v:dre.lLiq,       pv:prev?.lLiq,        sub:'',                              mg:dre.mgLiq,     cls:'k5'},
+  ];
+  document.getElementById('kpis').innerHTML=items.map(it=>{
+    const neg=it.v<0;
+    const yo=yoy(it.v,it.pv);
+    const mgBadge=it.mg!=null?`<span class="kb ${it.mg>=0?'neu':'neg'}">${fmtP(it.mg)}</span>`:'';
+    const yoBadge=yo?`<span class="kb ${yo.pos?'pos':'neg'}">${yo.s} a/a</span>`:'';
+    return`<div class="kpi ${it.cls}${neg?' kneg':''}">
+      <div class="kl">${it.l}</div>
+      <div class="kv${neg?' neg':''}">${fmtK(it.v)}</div>
+      ${it.sub?`<div class="ksub">${it.sub}</div>`:''}
+      <div class="kbadges">${mgBadge}${yoBadge}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// DRE TABLE
+// ═══════════════════════════════════════════════
+function renderDRE(dre,prev,label){
+  document.getElementById('dre-lbl').textContent=label;
+  const RL=dre.receitaLiq;
+  const row=(name,val,pval,cls,indent=false)=>{
+    const mg=RL?val/RL:0;
+    const yo=yoy(val,pval);
+    const neg=val<0;
+    const ind=indent?'padding-left:20px':'';
+    const fw=cls.includes('t')||cls.includes('hl')||cls.includes('eb')?'font-weight:700':'';
+    return`<tr class="${cls}">
+      <td style="${ind};${fw}">${name}</td>
+      <td class="${neg?'tr':''}">${fmtR(val)}</td>
+      <td>${cls==='dr-s'?'':fmtP(mg)}</td>
+      <td class="${pval&&pval<0?'tr':''}">${pval!=null?fmtR(pval):'—'}</td>
+      <td class="${yo?(yo.pos?'tg':'tr'):''}">${yo?yo.s:'—'}</td>
+    </tr>`;
+  };
+  const sec=t=>`<tr class="dr-sec"><td colspan="5">${t}</td></tr>`;
+  const h=`<table class="dt"><thead><tr>
+    <th>Item</th><th>Período</th><th>% RL</th><th>Ano Anterior</th><th>Var.</th>
+  </tr></thead><tbody>`;
+  const b=[
+    sec('Receitas'),
+    row('Receita Recorrente',    dre.recorrente, prev?.recorrente, 'dr-s',true),
+    row('Receita Não Recorrente',dre.naoRecorr,  prev?.naoRecorr,  'dr-s',true),
+    dre.naoFat!==0?row('Serviços Não Faturados (ajuste)',dre.naoFat,prev?.naoFat,'dr-s',true):'',
+    row('(−) Deduções PIS/COFINS/ISS',-dre.deducoes,prev?-prev.deducoes:null,'dr-s',true),
+    row('Receita Líquida',       dre.receitaLiq, prev?.receitaLiq, 'dr-t'),
+    sec('Custos e Resultado Operacional'),
+    row('(−) Custo dos Serviços Prestados',-dre.cpv,prev?-prev.cpv:null,'dr-s',true),
+    row('Lucro Bruto',           dre.lBruto,     prev?.lBruto,     'dr-t'),
+    row('(−) Despesas Comerciais',-dre.desCom,   prev?-prev.desCom:null,'dr-s',true),
+    row('(−) Despesas G&A',      -dre.desGA,     prev?-prev.desGA:null, 'dr-s',true),
+    row('EBIT',                  dre.ebit,       prev?.ebit,       'dr-t'),
+    row('(+) Depreciação e Amortização',dre.da,  prev?.da,         'dr-s',true),
+    row('EBITDA',                dre.ebitda,     prev?.ebitda,     'dr-eb'),
+    sec('Resultado Financeiro e Impostos'),
+    row('(+) Receitas Financeiras',dre.recFin,   prev?.recFin,     'dr-s',true),
+    row('(−) Despesas Financeiras',-dre.desFin,  prev?-prev.desFin:null,'dr-s',true),
+    row('LAIR',                  dre.lair,       prev?.lair,       'dr-t'),
+    row('(−) IR e Contribuição Social',-dre.ir,  prev?-prev.ir:null,'dr-s',true),
+    row('Lucro Líquido',         dre.lLiq,       prev?.lLiq,       'dr-hl'),
+  ].join('');
+  document.getElementById('dre-tbl').innerHTML=h+b+'</tbody></table>';
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: RECEITA
+// ═══════════════════════════════════════════════
+function renderRevChart(monthly){
+  dc('rev');
+  const ctx=document.getElementById('c-rev').getContext('2d');
+  S.ch['rev']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:MN,
+      datasets:[
+        {label:'Recorrente',     data:monthly.map(m=>Math.round(m.recorrente)),    backgroundColor:C.m+'CC',stack:'s',order:2},
+        {label:'Não Recorrente', data:monthly.map(m=>Math.round(m.naoRecorr)),     backgroundColor:C.r+'CC',stack:'s',order:2},
+        {label:'% Recorrente',   data:monthly.map(m=>+(m.pctRec*100).toFixed(1)), type:'line',
+          borderColor:C.c,backgroundColor:'transparent',yAxisID:'pct',
+          tension:.35,pointRadius:3.5,pointBackgroundColor:C.c,borderWidth:2.5,order:1}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='pct'?c.dataset.label+': '+c.parsed.y+'%':c.dataset.label+': '+fmtK(c.parsed.y)}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{ticks:{callback:v=>fmtK(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true},
+        pct:{position:'right',min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: MARGENS
+// ═══════════════════════════════════════════════
+function renderMgnChart(monthly){
+  dc('mgn');
+  const ctx=document.getElementById('c-mgn').getContext('2d');
+  const ds=(l,k,color,dash=[])=>({
+    label:l,
+    data:monthly.map(m=>isFinite(m[k])?+(m[k]*100).toFixed(1):null),
+    borderColor:color,backgroundColor:'transparent',tension:.35,
+    pointRadius:3,borderWidth:2,spanGaps:true,
+    borderDash:dash,pointBackgroundColor:color
+  });
+  S.ch['mgn']=new Chart(ctx,{
+    type:'line',
+    data:{labels:MN,datasets:[
+      ds('Mg. Bruta','mgBruta',C.r),
+      ds('EBITDA','mgEBITDA',C.c),
+      ds('EBIT','mgEBIT',C.m),
+      ds('Mg. Líquida','mgLiq',C.ok,[4,3])
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'#eff2f7'}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// WATERFALL HELPER
+// ═══════════════════════════════════════════════
+function mkWaterfall(canvasId,labels,values,types){
+  dc(canvasId);
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  let run=0;
+  const data=[];const bkg=[];
+  values.forEach((v,i)=>{
+    if(types[i]==='total'){
+      run=v;
+      data.push([0,v]);
+      bkg.push(v>=0?C.m:C.err);
+    } else if(types[i]==='sub'){
+      data.push([0,v]);
+      bkg.push(v>=0?C.r:C.err);
+    } else {
+      const s=run; run+=v;
+      data.push([Math.min(s,run),Math.max(s,run)]);
+      bkg.push(v>=0?C.ok:C.err);
+    }
+  });
+  S.ch[canvasId]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:bkg,borderRadius:3,borderSkipped:false,borderWidth:1,borderColor:'rgba(255,255,255,.4)'}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:c=>{const d=c.raw;return fmtR(Math.abs(d[1]-d[0]));}
+        }}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}},
+        y:{ticks:{callback:v=>fmtK(v),font:{size:9}},grid:{color:'#eff2f7'}}
+      }
+    }
+  });
+}
+
+function renderBridge(dre){
+  const rl=dre.receitaLiq, cpv=dre.cpv, lb=dre.lBruto;
+  const dc2=dre.desCom, dga=dre.desGA, ebit=dre.ebit, da=dre.da, ebitda=dre.ebitda;
+  mkWaterfall('c-brg',
+    ['Rec.\nLíquida','(-) CPV','Lucro\nBruto','(-) Desp.\nCom.','(-) G&A','EBIT','(+) D&A','EBITDA'],
+    [rl,       -cpv,     lb,        -dc2,      -dga,   ebit,  da,    ebitda],
+    ['total','step',  'sub',  'step','step','sub','step','sub']
+  );
+  mkWaterfall('c-brg2',
+    ['EBIT','Res.\nFinanc.','LAIR','(-) IR & CS','Lucro\nLíquido'],
+    [ebit, dre.resFin, dre.lair, -dre.ir, dre.lLiq],
+    ['total','step','sub','step','total']
+  );
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: DONUT CUSTOS
+// ═══════════════════════════════════════════════
+function renderDonut(dre){
+  dc('donut');
+  const ctx=document.getElementById('c-donut').getContext('2d');
+  const lbs=['CPV','Desp. Comerciais','Desp. G&A','Desp. Financeiras'];
+  const vs=[dre.cpv,dre.desCom,dre.desGA,dre.desFin].map(v=>Math.max(0,v));
+  const tot=vs.reduce((a,b)=>a+b,0);
+  S.ch['donut']=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:lbs,datasets:[{data:vs,backgroundColor:[C.m,C.r,C.c,C.g],borderWidth:3,borderColor:'#fff',hoverOffset:4}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:10}},
+        tooltip:{callbacks:{label:c=>c.label+': '+fmtK(c.raw)+' ('+fmtP(tot?c.raw/tot:0)+')'}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: EVOLUÇÃO DE CUSTOS
+// ═══════════════════════════════════════════════
+function renderCostChart(monthly){
+  dc('costs');
+  const ctx=document.getElementById('c-costs').getContext('2d');
+  S.ch['costs']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:MN,
+      datasets:[
+        {label:'CPV',              data:monthly.map(m=>Math.round(m.cpv)),    backgroundColor:C.m+'CC',stack:'s'},
+        {label:'Desp. Comerciais', data:monthly.map(m=>Math.round(m.desCom)), backgroundColor:C.r+'CC',stack:'s'},
+        {label:'Desp. G&A',        data:monthly.map(m=>Math.round(m.desGA)),  backgroundColor:C.c+'99',stack:'s'},
+        {label:'Desp. Financeiras',data:monthly.map(m=>Math.round(m.desFin)), backgroundColor:C.g+'88',stack:'s'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{ticks:{callback:v=>fmtK(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// DETRATORES
+// ═══════════════════════════════════════════════
+function renderDetractors(dets,rl){
+  if(!dets.length){document.getElementById('det-content').innerHTML='<div style="padding:20px;color:var(--g);text-align:center">Sem dados para o período</div>';return;}
+  const max=dets[0].v||1;
+  const html=dets.map((d,i)=>`
+    <div class="det-row">
+      <div class="det-rk ${i<3?'top3':''}">${i+1}</div>
+      <div class="det-info">
+        <div class="det-nm">${d.sg}</div>
+        <div class="det-cat">${d.grp}</div>
+      </div>
+      <div class="det-bw"><div class="det-bar" style="width:${Math.round(d.v/max*100)}%"></div></div>
+      <div class="det-val">
+        <div class="det-amt">${fmtK(d.v)}</div>
+        <div class="det-pct">${rl?fmtP(d.v/rl)+' RL':'—'}</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('det-content').innerHTML=`<div class="det-grid">${html}</div>`;
+}
+
+// ═══════════════════════════════════════════════
+// INDICADORES
+// ═══════════════════════════════════════════════
+function renderIndicators(dre){
+  const items=[
+    {l:'Margem Bruta',           v:dre.mgBruta,   cost:false},
+    {l:'Margem EBITDA',          v:dre.mgEBITDA,  cost:false},
+    {l:'Margem EBIT',            v:dre.mgEBIT,    cost:false},
+    {l:'Margem Líquida',         v:dre.mgLiq,     cost:false},
+    {l:'% Receita Recorrente',   v:dre.pctRec,    cost:false},
+    {l:'CPV / Receita Líquida',  v:dre.receitaLiq?dre.cpv/dre.receitaLiq:0, cost:true},
+    {l:'Desp. Op. / Rec. Líq.',  v:dre.receitaLiq?(dre.desCom+dre.desGA)/dre.receitaLiq:0, cost:true},
+    {l:'Resultado Fin. / EBIT',  v:dre.ebit?dre.resFin/Math.abs(dre.ebit):0, cost:false},
+  ];
+  document.getElementById('indicators').innerHTML=items.map(it=>{
+    const p=it.v*100;
+    let cls,bcls;
+    if(it.cost){cls=p<40?'ok':p<65?'warn':'err'; bcls=p<40?'ok':p<65?'warn':'err';}
+    else{cls=p>=10?'ok':p>=0?'warn':'err'; bcls=cls;}
+    return`<div class="ind ${bcls}">
+      <div class="iv">${fmtP(it.v)}</div>
+      <div class="il">${it.l}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// UPDATE PRINCIPAL
+// ═══════════════════════════════════════════════
+function update(){
+  const data=S.companies[S.co];
+  if(!data) return;
+  const{year:yr,month:mo,ytd}=S;
+  const dre=calcDRE(data,yr,mo,ytd);
+  const prev=calcDRE(data,yr-1,mo,ytd);
+  const monthly=calcMonthly(data,yr);
+  const dets=topDet(data,yr,mo,ytd);
+
+  // Period label
+  let lbl;
+  if(mo===null) lbl=`Ano ${yr}`;
+  else if(ytd)  lbl=`Acum. Jan–${MN[mo-1]}/${yr}`;
+  else          lbl=`${MN[mo-1]}/${yr}`;
+  document.getElementById('plbl').textContent=lbl;
+
+  const dreLabel=mo===null?`Exercício ${yr} vs ${yr-1}`
+    :ytd?`Acumulado Jan–${MN[mo-1]}/${yr} vs ${yr-1}`
+    :`${MN[mo-1]}/${yr} vs ${MN[mo-1]}/${yr-1}`;
+
+  renderKPIs(dre,prev);
+  renderDRE(dre,prev,dreLabel);
+  renderRevChart(monthly);
+  renderMgnChart(monthly);
+  renderBridge(dre);
+  renderDonut(dre);
+  renderCostChart(monthly);
+  renderDetractors(dets,dre.receitaLiq);
+  renderIndicators(dre);
+}
+
+// ═══════════════════════════════════════════════
+// UI BUILDERS
+// ═══════════════════════════════════════════════
+function buildYearBtns(){
+  const years=[...new Set((S.companies[S.co]||[]).map(r=>r.ano))].filter(Boolean).sort();
+  if(years.length&&!years.includes(S.year)) S.year=years[years.length-1];
+  document.getElementById('yr-btns').innerHTML=years.map(y=>
+    `<button class="fbtn${y===S.year?' active':''}" onclick="setYear(${y})">${y}</button>`
+  ).join('');
+}
+
+function buildMonthBtns(){
+  const data=S.companies[S.co]||[];
+  const avail=new Set(data.filter(r=>r.ano===S.year).map(r=>r.mes));
+  const btns=MN.map((m,i)=>{
+    const n=i+1, ok=avail.has(n);
+    return`<button class="fbtn${S.month===n?' active':''}" onclick="setMonth(${n})"${ok?'':' disabled'}>${m}</button>`;
+  });
+  btns.push(`<button class="fbtn${S.month===null?' active':''}" onclick="setMonth(null)">Ano</button>`);
+  document.getElementById('mo-btns').innerHTML=btns.join('');
+}
+
+function buildCoTabs(){
+  const names=Object.keys(S.companies);
+  document.getElementById('co-tabs').innerHTML=
+    names.length>1?names.map(n=>`<button class="co-tab${n===S.co?' active':''}" onclick="setCo(${JSON.stringify(n)})">▪ ${n}</button>`).join(''):'';
+  document.getElementById('co-name').textContent=S.co||'Dashboard Financeiro';
+}
+
+// ═══════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════
+window.setYear=y=>{S.year=y;buildYearBtns();buildMonthBtns();update();};
+window.setMonth=m=>{S.month=m;buildMonthBtns();update();};
+window.setYtd=v=>{
+  S.ytd=v;
+  document.getElementById('btn-mes').classList.toggle('active',!v);
+  document.getElementById('btn-ytd').classList.toggle('active',v);
+  update();
+};
+window.setCo=n=>{S.co=n;buildCoTabs();buildYearBtns();buildMonthBtns();update();};
+
+async function processFiles(files){
+  document.getElementById('loading').classList.add('on');
+  for(var i=0;i<files.length;i++){
+    try{
+      var result=await parseFile(files[i]);
+      S.companies[result.name]=result.data;
+      if(!S.co) S.co=result.name;
+    }catch(err){alert('Erro ao ler "'+files[i].name+'":\n'+err.message);}
+  }
+  document.getElementById('loading').classList.remove('on');
+  if(!Object.keys(S.companies).length) return;
+  document.getElementById('empty').style.display='none';
+  document.getElementById('dash').style.display='block';
+  buildCoTabs();
+  buildYearBtns();
+  var d=S.companies[S.co]||[];
+  var avail=d.filter(function(r){return r.ano===S.year;}).map(function(r){return r.mes;});
+  var maxMo=avail.length?Math.max.apply(null,avail):null;
+  S.month=(maxMo&&maxMo>=1&&maxMo<=12)?maxMo:null;
+  buildMonthBtns();
+  update();
+}
+
+document.getElementById('file-in').addEventListener('change',function(e){
+  var files=Array.prototype.slice.call(e.target.files);
+  if(!files.length) return;
+  processFiles(files);
+  this.value='';
+});
+
+// Drag & drop — compatible with all browsers (no DataTransfer constructor)
+document.addEventListener('dragover',function(e){e.preventDefault();e.dataTransfer.dropEffect='copy';});
+document.addEventListener('dragleave',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){
+  e.preventDefault();
+  var files=Array.prototype.slice.call(e.dataTransfer.files).filter(function(f){return /\.xlsx?$/i.test(f.name);});
+  if(files.length) processFiles(files);
+});
+</script>
+</body>
+</html>
