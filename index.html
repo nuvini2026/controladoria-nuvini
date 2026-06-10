@@ -140,6 +140,45 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .kg{grid-template-columns:repeat(2,1fr)}
   #hdr{flex-wrap:wrap;height:auto;padding:8px 14px;gap:6px}
 }
+
+/* ── BALANCETE BUTTON ── */
+#bal-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;transition:.15s;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:4px}
+#bal-btn:hover{background:rgba(255,255,255,.25)}
+
+/* ── BALANÇO PATRIMONIAL ── */
+.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bp-side{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.bp-hdr{font-size:11px;font-weight:800;color:#fff;background:var(--m);padding:7px 12px;border-radius:6px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
+.bp-grp{font-size:10px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:.4px;padding:8px 0 2px 0;margin-top:4px;border-top:1px solid var(--bdr)}
+.bp-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px;color:#1e293b}
+.bp-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;color:#4a5568}
+.bp-vl{font-size:12px;font-weight:600;color:var(--m);white-space:nowrap}
+.bp-tot{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:6px;margin-top:8px;background:var(--m);color:#fff;font-weight:800;font-size:13px}
+.bp-sub{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:4px;background:#EEF3FF;color:var(--m);font-weight:700;font-size:12px;margin-top:6px}
+
+/* ── ÍNDICES FINANCEIROS ── */
+.ix-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ix-card{background:var(--card);border-radius:12px;padding:18px 14px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center;border-bottom:3px solid var(--bdr)}
+.ix-card.ok{border-bottom-color:var(--ok)}
+.ix-card.warn{border-bottom-color:var(--warn)}
+.ix-card.err{border-bottom-color:var(--err)}
+.ix-card.neu{border-bottom-color:var(--r)}
+.ix-v{font-size:26px;font-weight:800;color:var(--m);line-height:1.1}
+.ix-l{font-size:10px;color:var(--g);margin-top:5px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.ix-sub{font-size:9px;color:var(--g);margin-top:3px;opacity:.8}
+
+/* ── DFC ── */
+.dfc-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.dfc-tbl td{padding:5px 10px;border-bottom:1px solid var(--bdr)}
+.dfc-tbl td:last-child{text-align:right;white-space:nowrap;font-weight:600}
+.dfc-sec td{background:#F8F9FC;color:var(--m);font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:800;padding:6px 10px;border:none}
+.dfc-tot td{font-weight:800;color:var(--m);background:#EEF3FF;border-top:2px solid #C7D7FF;border-bottom:2px solid #C7D7FF}
+.dfc-recon td{font-style:italic;color:var(--g);font-size:11px}
+.dfc-pos{color:var(--ok)!important}
+.dfc-neg{color:var(--err)!important}
+
+@media(max-width:1200px){.ix-grid{grid-template-columns:repeat(3,1fr)}.bp-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.ix-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -164,6 +203,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
   <div class="sp"></div>
   <span id="plbl"></span>
+  <label id="bal-btn" title="Carregar balancete">📋 Balancete
+    <input type="file" id="bal-in" accept=".xlsx,.xls" multiple style="display:none">
+  </label>
   <label id="up-btn" title="Adicionar arquivo(s)">+
     <input type="file" id="file-in" accept=".xlsx,.xls" multiple style="display:none">
   </label>
@@ -258,6 +300,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div id="indicators" class="indg"></div>
   </div>
 
+  <!-- Balanço Patrimonial -->
+  <div class="sec" id="sec-bp" style="display:none">
+    <div class="sh"><span class="sh-title">Balanço Patrimonial</span><div class="sh-line"></div></div>
+    <div class="bp-grid" id="bp-content"></div>
+  </div>
+
+  <!-- Índices Financeiros -->
+  <div class="sec" id="sec-ix" style="display:none">
+    <div class="sh"><span class="sh-title">Índices Financeiros</span><div class="sh-line"></div></div>
+    <div class="ix-grid" id="ix-content"></div>
+  </div>
+
+  <!-- DFC Método Indireto -->
+  <div class="sec" id="sec-dfc" style="display:none">
+    <div class="sh"><span class="sh-title">DFC — Método Indireto</span><div class="sh-line"></div></div>
+    <div class="card">
+      <div class="ct" id="dfc-lbl"></div>
+      <div class="tw" id="dfc-tbl"></div>
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -271,7 +334,7 @@ const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez
 // ═══════════════════════════════════════════════
 // ESTADO
 // ═══════════════════════════════════════════════
-const S={companies:{},co:null,year:null,month:null,ytd:false,ch:{}};
+const S={companies:{},co:null,year:null,month:null,ytd:false,ch:{},balancetes:{}};
 
 // ═══════════════════════════════════════════════
 // FORMATAÇÃO
@@ -816,6 +879,358 @@ function renderIndicators(dre){
 }
 
 // ═══════════════════════════════════════════════
+// BALANCETE — CATEGORIZAÇÃO
+// ═══════════════════════════════════════════════
+function bsCat(classif){
+  const c=String(classif||'').trim();
+  const m=c.match(/^(\d+)[.\-](\d+)/);
+  if(m){
+    const a=parseInt(m[1]),b=parseInt(m[2]);
+    if(a===1) return b<=1?'AC':'ANC';
+    if(a===2){if(b<=1)return'PC';if(b===2)return'PNC';return'PL';}
+    return null;
+  }
+  const d=c.replace(/\D/g,'');
+  if(!d) return null;
+  const f=parseInt(d[0]);
+  if(f===1) return'AC';
+  if(f===2) return'PC';
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+// BALANCETE — PARSE
+// ═══════════════════════════════════════════════
+function parseBal(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+
+        // Localiza linha de cabeçalho
+        const HDR=['classif','saldo','descri','codigo'];
+        let hdrIdx=0;
+        for(let i=0;i<Math.min(rawRows.length,25);i++){
+          const cells=(rawRows[i]||[]).filter(c=>c!=null&&String(c).trim());
+          if(cells.length>=3){
+            const joined=cells.map(c=>norm(String(c))).join(' ');
+            if(HDR.some(k=>joined.includes(k))){hdrIdx=i;break;}
+          }
+        }
+
+        const hdrs=(rawRows[hdrIdx]||[]);
+        const rows=rawRows.slice(hdrIdx+1).map(dataRow=>{
+          const obj={};
+          hdrs.forEach((h,i2)=>{if(h!=null) obj[String(h)]=dataRow[i2]!==undefined?dataRow[i2]:null;});
+          return obj;
+        }).filter(obj=>Object.values(obj).some(v=>v!=null));
+
+        if(!rows.length) throw new Error('Planilha de balancete vazia');
+
+        const g2=(...aliases)=>row=>getField(row,aliases);
+
+        const accounts=[];
+        let year=null;
+        for(const row of rows){
+          const classif=String(getField(row,['Classificação','Classificacao','classif','Classif'])||'').trim();
+          const cat=bsCat(classif);
+          if(!cat) continue;
+
+          const desc=String(getField(row,['Descrição da conta','Descricao da conta','Descricao','Descrição','descricao','descricao da conta'])||'').trim();
+          if(!desc) continue;
+
+          // Saldo Atual
+          let saldo=getField(row,['Saldo Atual','saldo atual','SaldoAtual','saldoatual']);
+          if(typeof saldo==='string') saldo=parseFloat(saldo.replace(/\./g,'').replace(',','.'))||0;
+          saldo=parseFloat(saldo)||0;
+
+          // Saldo Anterior
+          let saldoAnt=getField(row,['Saldo Anterior','saldo anterior','SaldoAnterior','saldoanterior']);
+          if(typeof saldoAnt==='string') saldoAnt=parseFloat(saldoAnt.replace(/\./g,'').replace(',','.'))||0;
+          saldoAnt=parseFloat(saldoAnt)||0;
+
+          accounts.push({classif,cat,desc,saldo,saldoAnt});
+        }
+
+        if(!accounts.length) throw new Error('Nenhuma conta de balanço reconhecida no balancete');
+
+        // Tenta detectar o ano do nome do arquivo
+        const ym=file.name.match(/\b(20\d{2})\b/);
+        year=ym?parseInt(ym[1]):new Date().getFullYear();
+
+        let name=file.name
+          .replace(/\.xlsx?$/i,'')
+          .replace(/[_-]+/g,' ')
+          .replace(/\s*(balancete|balanço|balanco|2024|2025|2026|2023)\s*/gi,' ')
+          .replace(/\s+/g,' ').trim()||'Empresa';
+
+        res({name,year,accounts});
+      }catch(err){rej(err);}
+    };
+    r.onerror=rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DO BALANÇO PATRIMONIAL
+// ═══════════════════════════════════════════════
+function calcBP(accounts){
+  const cats=['AC','ANC','PC','PNC','PL'];
+  const byCat={AC:[],ANC:[],PC:[],PNC:[],PL:[]};
+  for(const a of accounts){
+    if(byCat[a.cat]) byCat[a.cat].push(a);
+  }
+
+  // Sign fix for Totvs: liabilities may be stored as negatives (credits)
+  const fixSign=(cat,arr)=>{
+    const total=arr.reduce((s,a)=>s+a.saldo,0);
+    if(cat!=='AC'&&cat!=='ANC'&&total<0) return arr.map(a=>({...a,saldo:-a.saldo}));
+    return arr;
+  };
+
+  const fixed={};
+  for(const cat of cats) fixed[cat]=fixSign(cat,byCat[cat]);
+
+  const sum=cat=>fixed[cat].reduce((s,a)=>s+a.saldo,0);
+  const AC=sum('AC'), ANC=sum('ANC'), PC=sum('PC'), PNC=sum('PNC'), PL=sum('PL');
+  const AT=AC+ANC;
+  const PT=PC+PNC+PL;
+
+  // Caixa: AC com /caixa|banco|aplicac|disponib/i
+  const caixa=fixed['AC'].filter(a=>/caixa|banco|aplicac|disponib/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
+  // Estoques
+  const estoques=fixed['AC'].filter(a=>/estoque|mercadori|produto/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
+  // ARLP: ANC sem imobilizado/intangível
+  const ARLP=fixed['ANC'].filter(a=>!/imobil|intang|deprec|direito/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
+
+  // Grupos top 8 por |saldo| para cada categoria
+  const topGrp=arr=>arr
+    .filter(a=>Math.abs(a.saldo)>1)
+    .sort((a,b)=>Math.abs(b.saldo)-Math.abs(a.saldo))
+    .slice(0,8)
+    .map(a=>[a.desc,a.saldo]);
+
+  return{
+    AC,ANC,AT,PC,PNC,PL,PT,caixa,estoques,ARLP,
+    grpAC:topGrp(fixed['AC']),
+    grpANC:topGrp(fixed['ANC']),
+    grpPC:topGrp(fixed['PC']),
+    grpPNC:topGrp(fixed['PNC']),
+    grpPL:topGrp(fixed['PL'])
+  };
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DOS ÍNDICES (BP + DRE)
+// ═══════════════════════════════════════════════
+function calcIndicesBP(bp,dre){
+  const safe=(n,d2)=>d2&&d2!==0?n/d2:null;
+  const divBruta=bp.PC+bp.PNC;
+  const divLiq=divBruta-bp.caixa;
+  const liqCorr=safe(bp.AC,bp.PC);
+  const liqSeca=safe(bp.AC-bp.estoques,bp.PC);
+  const liqImed=safe(bp.caixa,bp.PC);
+  const liqGeral=safe(bp.AC+bp.ARLP,bp.PC+bp.PNC);
+  const endivGeral=safe(divBruta,bp.AT);
+  const compEndiv=safe(bp.PC,divBruta);
+  const capGiro=bp.AC-bp.PC;
+  const roe=dre?safe(dre.lLiq,bp.PL):null;
+  const roa=dre?safe(dre.lLiq,bp.AT):null;
+  const margemEbitda=dre?dre.mgEBITDA:null;
+  const divLiqEbitda=dre&&dre.ebitda?safe(divLiq,dre.ebitda):null;
+  return{liqCorr,liqSeca,liqImed,liqGeral,endivGeral,compEndiv,capGiro,roe,roa,margemEbitda,divLiqEbitda,divBruta,divLiq};
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DA DFC (MÉTODO INDIRETO)
+// ═══════════════════════════════════════════════
+function calcDFC(data,year,month,ytd){
+  const d=data.filter(r=>{
+    if(r.ano!==year) return false;
+    if(ytd&&month!==null) return r.mes<=month;
+    if(month!==null) return r.mes===month;
+    return true;
+  });
+
+  // Verifica se há grupos de balanço
+  const grupos=new Set(d.map(r=>r.grupo));
+  const hasBSGroups=grupos.has('Caixa e equivalentes de caixa')||grupos.has('Contas a receber de clientes');
+  if(!hasBSGroups) return null;
+
+  const mov=grps=>d.filter(r=>grps.includes(r.grupo)).reduce((s,r)=>s+r.mov,0);
+  const dre=calcDRE(data,year,month,ytd);
+
+  // FCO — capital de giro
+  const varAR      =-mov(['Contas a receber de clientes']);
+  const varOutAC   =-mov(['Outros créditos AC','Impostos a recuperar','Despesas antecipadas']);
+  const varFornec  =-mov(['Fornecedores']);
+  const varSal     =-mov(['Salários e encargos trabalhistas']);
+  const varImpPag  =-mov(['Impostos, taxas e contribuições a recolher','Imposto de renda e contribuição social a pagar']);
+  const varRecDif  =-mov(['Receita diferida']);
+  const varOutPC   =-mov(['Outras contas a pagar','Provisões']);
+  const varCG=varAR+varOutAC+varFornec+varSal+varImpPag+varRecDif+varOutPC;
+  const fco=dre.lLiq+dre.da+varCG;
+
+  // FCI
+  const varImob    =-mov(['Imobilizado']);
+  const varDirUso  =-mov(['Ativos de direito de uso']);
+  const varImpDif  =-mov(['IMPOSTOS DIFERIDOS ANC']);
+  const fci=varImob+varDirUso+varImpDif;
+
+  // FCF
+  const varArrend  =-mov(['Passivo de Arrendamento PC','Passivo de Arrendamento PNC']);
+  const varCapSoc  =-mov(['Capital Social']);
+  const fcf=varArrend+varCapSoc;
+
+  const varCaixa=fco+fci+fcf;
+  const movCaixa=mov(['Caixa e equivalentes de caixa']);
+  const divergencia=varCaixa-movCaixa;
+
+  return{dre,varAR,varOutAC,varFornec,varSal,varImpPag,varRecDif,varOutPC,varCG,fco,
+    varImob,varDirUso,varImpDif,fci,
+    varArrend,varCapSoc,fcf,
+    varCaixa,movCaixa,divergencia};
+}
+
+// ═══════════════════════════════════════════════
+// RENDER — BALANÇO PATRIMONIAL
+// ═══════════════════════════════════════════════
+function renderBP(bp){
+  const fv=v=>fmtMil(v);
+  const rows=grp=>grp.map(([nm,vl])=>`<div class="bp-row"><span class="bp-nm">${nm}</span><span class="bp-vl">${fv(vl)}</span></div>`).join('');
+
+  const ativoHtml=`
+    <div class="bp-side">
+      <div class="bp-hdr">Ativo</div>
+      <div class="bp-grp">Ativo Circulante</div>
+      ${rows(bp.grpAC)}
+      <div class="bp-sub"><span>Total AC</span><span>${fv(bp.AC)}</span></div>
+      <div class="bp-grp">Ativo Não Circulante</div>
+      ${rows(bp.grpANC)}
+      <div class="bp-sub"><span>Total ANC</span><span>${fv(bp.ANC)}</span></div>
+      <div class="bp-tot"><span>TOTAL ATIVO</span><span>${fv(bp.AT)}</span></div>
+    </div>`;
+
+  const passHtml=`
+    <div class="bp-side">
+      <div class="bp-hdr">Passivo + Patrimônio Líquido</div>
+      <div class="bp-grp">Passivo Circulante</div>
+      ${rows(bp.grpPC)}
+      <div class="bp-sub"><span>Total PC</span><span>${fv(bp.PC)}</span></div>
+      <div class="bp-grp">Passivo Não Circulante</div>
+      ${rows(bp.grpPNC)}
+      <div class="bp-sub"><span>Total PNC</span><span>${fv(bp.PNC)}</span></div>
+      <div class="bp-grp">Patrimônio Líquido</div>
+      ${rows(bp.grpPL)}
+      <div class="bp-sub"><span>Total PL</span><span>${fv(bp.PL)}</span></div>
+      <div class="bp-tot"><span>TOTAL PASSIVO + PL</span><span>${fv(bp.PT)}</span></div>
+    </div>`;
+
+  document.getElementById('bp-content').innerHTML=ativoHtml+passHtml;
+  document.getElementById('sec-bp').style.display='';
+}
+
+// ═══════════════════════════════════════════════
+// RENDER — ÍNDICES FINANCEIROS
+// ═══════════════════════════════════════════════
+function renderIndicesBP(ix){
+  const fmtX=v=>v!=null?v.toFixed(2)+'x':'—';
+  const fmtPct=v=>v!=null?fmtP(v):'—';
+  const fmtM=v=>v!=null?'R$ '+fmtMil(v)+' mil':'—';
+
+  const liqCls=v=>{if(v===null)return'neu';return v>=1.5?'ok':v>=1?'warn':'err';};
+  const endCls=v=>{if(v===null)return'neu';return v<=.4?'ok':v<=.65?'warn':'err';};
+  const roeCls=v=>{if(v===null)return'neu';return v>=.15?'ok':v>=.05?'warn':'err';};
+  const dleCls=v=>{if(v===null)return'neu';return v<=2?'ok':v<=4?'warn':'err';};
+
+  const cards=[
+    {v:fmtX(ix.liqCorr),  l:'Liquidez Corrente',      sub:'AC / PC',                    cls:liqCls(ix.liqCorr)},
+    {v:fmtX(ix.liqSeca),  l:'Liquidez Seca',           sub:'(AC − Est.) / PC',           cls:liqCls(ix.liqSeca)},
+    {v:fmtX(ix.liqImed),  l:'Liquidez Imediata',       sub:'Caixa / PC',                 cls:liqCls(ix.liqImed)},
+    {v:fmtX(ix.liqGeral), l:'Liquidez Geral',          sub:'(AC+ARLP) / (PC+PNC)',       cls:liqCls(ix.liqGeral)},
+    {v:fmtPct(ix.endivGeral), l:'Endividamento Geral', sub:'Dív. Bruta / AT',            cls:endCls(ix.endivGeral)},
+    {v:fmtPct(ix.compEndiv),  l:'Comp. Endividamento', sub:'PC / Dív. Bruta',            cls:endCls(ix.compEndiv)},
+    {v:fmtM(ix.capGiro),      l:'Capital de Giro Líq.',sub:'AC − PC',                   cls:'neu'},
+    {v:fmtPct(ix.roe),        l:'ROE',                 sub:'Lucro Líq. / PL',            cls:roeCls(ix.roe)},
+    {v:fmtPct(ix.roa),        l:'ROA',                 sub:'Lucro Líq. / AT',            cls:roeCls(ix.roa)},
+    {v:fmtPct(ix.margemEbitda),l:'Margem EBITDA',      sub:'EBITDA / Rec. Líquida',      cls:ix.margemEbitda!=null?(ix.margemEbitda>=.15?'ok':ix.margemEbitda>=.05?'warn':'err'):'neu'},
+    {v:ix.divLiqEbitda!=null?ix.divLiqEbitda.toFixed(2)+'x':'—',l:'Dívida Líq./EBITDA',sub:'(PC+PNC−Cx) / EBITDA',cls:dleCls(ix.divLiqEbitda)},
+    {v:fmtM(ix.divBruta), l:'Dívida Bruta',            sub:'PC + PNC',                   cls:'neu'},
+  ];
+
+  document.getElementById('ix-content').innerHTML=cards.map(c=>`
+    <div class="ix-card ${c.cls}">
+      <div class="ix-v">${c.v}</div>
+      <div class="ix-l">${c.l}</div>
+      <div class="ix-sub">${c.sub}</div>
+    </div>`).join('');
+  document.getElementById('sec-ix').style.display='';
+}
+
+// ═══════════════════════════════════════════════
+// RENDER — DFC MÉTODO INDIRETO
+// ═══════════════════════════════════════════════
+function renderDFC(dfc,label){
+  const el=document.getElementById('sec-dfc');
+  if(!dfc){el.style.display='none';return;}
+
+  document.getElementById('dfc-lbl').textContent=label;
+  const fmt=v=>{
+    if(v===0) return'—';
+    const abs=fmtMil(Math.abs(v));
+    return v<0?`<span class="dfc-neg">(${abs})</span>`:`<span class="dfc-pos">${abs}</span>`;
+  };
+  const fmtTot=v=>{
+    const abs=fmtMil(Math.abs(v));
+    return v<0?`<span class="dfc-neg">(${abs})</span>`:`<span class="dfc-pos">${abs}</span>`;
+  };
+
+  const sec=t=>`<tr class="dfc-sec"><td colspan="2">${t}</td></tr>`;
+  const row=(nm,v)=>Math.abs(v)<1?'':
+    `<tr><td style="padding-left:20px">${nm}</td><td>${fmt(v)}</td></tr>`;
+  const tot=(nm,v)=>
+    `<tr class="dfc-tot"><td>${nm}</td><td>${fmtTot(v)}</td></tr>`;
+  const recon=(nm,v)=>
+    `<tr class="dfc-recon"><td>${nm}</td><td>${fmt(v)}</td></tr>`;
+
+  const html=`<table class="dfc-tbl">
+    ${sec('Atividades Operacionais (FCO)')}
+    ${row('Lucro Líquido',dfc.dre.lLiq)}
+    ${row('(+) Depreciação e Amortização',dfc.dre.da)}
+    ${row('Δ Contas a Receber',dfc.varAR)}
+    ${row('Δ Outros Ativos Circulantes',dfc.varOutAC)}
+    ${row('Δ Fornecedores',dfc.varFornec)}
+    ${row('Δ Salários e Encargos',dfc.varSal)}
+    ${row('Δ Impostos a Pagar',dfc.varImpPag)}
+    ${row('Δ Receita Diferida',dfc.varRecDif)}
+    ${row('Δ Outras Contas a Pagar',dfc.varOutPC)}
+    ${tot('Fluxo de Caixa Operacional (FCO)',dfc.fco)}
+    ${sec('Atividades de Investimento (FCI)')}
+    ${row('Δ Imobilizado',dfc.varImob)}
+    ${row('Δ Direito de Uso',dfc.varDirUso)}
+    ${row('Δ Impostos Diferidos ANC',dfc.varImpDif)}
+    ${tot('Fluxo de Caixa de Investimento (FCI)',dfc.fci)}
+    ${sec('Atividades de Financiamento (FCF)')}
+    ${row('Δ Arrendamentos',dfc.varArrend)}
+    ${row('Δ Capital Social',dfc.varCapSoc)}
+    ${tot('Fluxo de Caixa de Financiamento (FCF)',dfc.fcf)}
+    <tr class="dfc-tot" style="background:var(--m);color:#fff">
+      <td style="font-size:13px">Variação Líquida de Caixa</td>
+      <td style="font-size:13px">${fmtTot(dfc.varCaixa)}</td>
+    </tr>
+    ${recon('Variação real em Caixa (razão)',dfc.movCaixa)}
+    ${recon('Divergência',dfc.divergencia)}
+  </table>`;
+
+  document.getElementById('dfc-tbl').innerHTML=html;
+  el.style.display='';
+}
+
+// ═══════════════════════════════════════════════
 // UPDATE PRINCIPAL
 // ═══════════════════════════════════════════════
 function update(){
@@ -851,6 +1266,22 @@ function update(){
     ['Indicators', ()=>renderIndicators(dre)],
   ];
   for(const [,fn] of renders){try{fn();}catch(e){console.error(e);}}
+
+  // DFC
+  const dfc=calcDFC(data,yr,mo,ytd);
+  renderDFC(dfc,dreLabel);
+
+  // BP e Índices
+  const balAccts=(S.balancetes[S.co]||{})[yr];
+  if(balAccts){
+    const bp=calcBP(balAccts);
+    const ix=calcIndicesBP(bp,dre);
+    try{renderBP(bp);}catch(e){console.error(e);}
+    try{renderIndicesBP(ix);}catch(e){console.error(e);}
+  }else{
+    document.getElementById('sec-bp').style.display='none';
+    document.getElementById('sec-ix').style.display='none';
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -924,6 +1355,26 @@ document.getElementById('file-in').addEventListener('change',function(e){
   processFiles(files);
   this.value='';
 });
+
+document.getElementById('bal-in').addEventListener('change',function(e){
+  var files=Array.prototype.slice.call(e.target.files);
+  if(!files.length) return;
+  processBalFiles(files);
+  this.value='';
+});
+
+async function processBalFiles(files){
+  document.getElementById('loading').classList.add('on');
+  for(var i=0;i<files.length;i++){
+    try{
+      var r=await parseBal(files[i]);
+      if(!S.balancetes[r.name]) S.balancetes[r.name]={};
+      S.balancetes[r.name][r.year]=r.accounts;
+    }catch(err){alert('Erro ao ler balancete "'+files[i].name+'":\n'+err.message);}
+  }
+  document.getElementById('loading').classList.remove('on');
+  if(S.co) update();
+}
 
 // Drag & drop — compatible with all browsers (no DataTransfer constructor)
 document.addEventListener('dragover',function(e){e.preventDefault();e.dataTransfer.dropEffect='copy';});
