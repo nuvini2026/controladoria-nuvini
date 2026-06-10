@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Financeiro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --m:#143A79;--r:#3C70DC;--c:#03CEFE;--cl:#D6F4FF;--g:#737373;
+  --bg:#EEF2FA;--card:#fff;--bdr:#E2E8F2;
+  --ok:#10B981;--err:#EF4444;--warn:#F59E0B;--pur:#8B5CF6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:#1e293b;min-height:100vh}
+
+/* ── HEADER ── */
+#hdr{background:var(--m);color:#fff;display:flex;align-items:center;gap:10px;padding:0 24px;height:58px;position:-webkit-sticky;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+#co-name{font-size:15px;font-weight:800;letter-spacing:.3px;white-space:nowrap}
+#co-tabs{display:flex;gap:4px;flex-shrink:0}
+.co-tab{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;transition:.15s}
+.co-tab.active{background:var(--r);border-color:var(--r)}
+.co-tab:hover{background:rgba(255,255,255,.2)}
+.vd{width:1px;height:28px;background:rgba(255,255,255,.2);flex-shrink:0}
+.fg{display:flex;align-items:center;gap:3px;flex-shrink:0}
+.fl{font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.6px;margin-right:2px;white-space:nowrap}
+.fbtn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;transition:.15s;white-space:nowrap}
+.fbtn:hover{background:rgba(255,255,255,.2)}
+.fbtn.active{background:var(--c);border-color:var(--c);color:var(--m)}
+.fbtn:disabled{opacity:.35;cursor:default}
+/* ytd toggle */
+.ytd-wrap{display:flex;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,.2);flex-shrink:0}
+.ytd-wrap button{background:rgba(255,255,255,.1);border:none;color:#fff;padding:3px 9px;cursor:pointer;font-size:10px;font-weight:700;transition:.15s}
+.ytd-wrap button.active{background:var(--c);color:var(--m)}
+.ytd-wrap button:hover:not(.active){background:rgba(255,255,255,.2)}
+.sp{flex:1}
+#plbl{font-size:11px;background:rgba(255,255,255,.15);border-radius:12px;padding:2px 10px;white-space:nowrap;flex-shrink:0}
+#up-btn{background:var(--c);border:none;color:var(--m);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0;line-height:1}
+#up-btn:hover{transform:scale(1.12);background:#fff}
+
+/* ── LOADING ── */
+#loading{display:none;position:fixed;inset:0;background:rgba(20,58,121,.7);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#fff}
+#loading.on{display:flex}
+.spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.3);border-top-color:#03CEFE;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── EMPTY ── */
+#empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 58px);gap:12px;color:var(--g)}
+.ei{font-size:60px;opacity:.35}
+.et{font-size:22px;font-weight:800;color:var(--m)}
+.es{font-size:13px;opacity:.8}
+.ua{border:2px dashed var(--r);border-radius:14px;padding:28px 48px;text-align:center;cursor:pointer;transition:.2s;margin-top:10px;color:var(--m);font-weight:600;font-size:14px}
+.ua:hover{background:var(--cl);border-color:var(--c);transform:scale(1.01)}
+.ua-sub{font-size:11px;color:var(--g);margin-top:5px;font-weight:400}
+
+/* ── MAIN ── */
+#dash{padding:20px 28px;max-width:1600px;margin:0 auto}
+.sec{margin-bottom:18px}
+.card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.ct{font-size:12px;font-weight:800;color:var(--m);text-transform:uppercase;letter-spacing:.5px}
+.cs{font-size:11px;color:var(--g);margin-top:2px;margin-bottom:12px}
+.r21{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.r11{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.r12{display:grid;grid-template-columns:1fr 2fr;gap:16px}
+
+/* ── KPIs ── */
+.kg{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.kpi{background:var(--card);border-radius:12px;padding:18px 16px;box-shadow:0 1px 5px rgba(0,0,0,.07);border-top:3px solid var(--r)}
+.kpi.k1{border-top-color:var(--m)}
+.kpi.k3{border-top-color:var(--c)}
+.kpi.k5{border-top-color:var(--ok)}
+.kpi.kneg{border-top-color:var(--err)!important}
+.kl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--g);font-weight:700;margin-bottom:5px}
+.kv{font-size:20px;font-weight:800;color:var(--m);line-height:1.2}
+.kv.neg{color:var(--err)}
+.ksub{font-size:11px;color:var(--g);margin-top:2px}
+.kbadges{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.kb{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+.kb.pos{background:#D1FAE5;color:#065F46}
+.kb.neg{background:#FEE2E2;color:#991B1B}
+.kb.neu{background:var(--cl);color:var(--m)}
+
+/* ── DRE TABLE ── */
+.dt{width:100%;border-collapse:collapse;font-size:12px}
+.dt th{background:var(--m);color:#fff;padding:8px 10px;text-align:right;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+.dt th:first-child{text-align:left;border-radius:6px 0 0 0;width:42%}
+.dt th:last-child{border-radius:0 6px 0 0}
+.dt td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--bdr)}
+.dt td:first-child{text-align:left}
+.dr-s td{color:#5a6a82;font-size:11px;background:#fafbfd}
+.dr-s td:first-child{padding-left:18px}
+.dr-t td{font-weight:700;color:var(--m);background:#EEF3FF;border-top:2px solid #C7D7FF;border-bottom:2px solid #C7D7FF}
+.dr-hl td{font-weight:800;background:var(--m);color:#fff}
+.dr-eb td{font-weight:700;background:#EFF6FF;color:#1E40AF}
+.dr-sec td{background:#F8F9FC;color:var(--g);font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;padding:5px 10px;border:none}
+.tr{color:var(--err)!important}
+.tg{color:var(--ok)!important}
+.tw{overflow-x:auto;margin-top:6px}
+
+/* ── DETRACTORS ── */
+.det-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media(max-width:900px){.det-grid{grid-template-columns:1fr}}
+.det-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bdr);transition:.12s}
+.det-row:hover{background:#f0f6ff}
+.det-rk{width:20px;height:20px;border-radius:50%;background:var(--m);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.det-rk.top3{background:var(--r)}
+.det-info{flex:1;min-width:0}
+.det-nm{font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.det-cat{font-size:10px;color:var(--g)}
+.det-bw{width:55px;flex-shrink:0}
+.det-bar{height:4px;background:linear-gradient(90deg,var(--r),var(--c));border-radius:2px}
+.det-val{text-align:right;flex-shrink:0;min-width:80px}
+.det-amt{font-size:12px;font-weight:700;color:var(--m)}
+.det-pct{font-size:10px;color:var(--g)}
+
+/* ── INDICATORS ── */
+.indg{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ind{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center;border-bottom:3px solid var(--bdr)}
+.ind.ok{border-bottom-color:var(--ok)}
+.ind.err{border-bottom-color:var(--err)}
+.ind.warn{border-bottom-color:var(--warn)}
+.ind.neu{border-bottom-color:var(--r)}
+.iv{font-size:28px;font-weight:800;color:var(--m);line-height:1}
+.il{font-size:10px;color:var(--g);margin-top:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+
+/* ── SECTION HEADER ── */
+.sh{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sh-title{font-size:13px;font-weight:800;color:var(--m);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.sh-line{flex:1;height:1px;background:var(--bdr)}
+
+@media(max-width:1200px){
+  .kg{grid-template-columns:repeat(3,1fr)}
+  .r21,.r11,.r12{grid-template-columns:1fr}
+  .indg{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:700px){
+  #dash{padding:12px}
+  .kg{grid-template-columns:repeat(2,1fr)}
+  #hdr{flex-wrap:wrap;height:auto;padding:8px 14px;gap:6px}
+}
+
+/* ── BALANCETE BUTTON ── */
+#bal-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;transition:.15s;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:4px}
+#bal-btn:hover{background:rgba(255,255,255,.25)}
+
+/* ── BALANÇO PATRIMONIAL ── */
+.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bp-side{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.bp-hdr{font-size:11px;font-weight:800;color:#fff;background:var(--m);padding:7px 12px;border-radius:6px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
+.bp-grp{font-size:10px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:.4px;padding:8px 0 2px 0;margin-top:4px;border-top:1px solid var(--bdr)}
+.bp-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px;color:#1e293b}
+.bp-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;color:#4a5568}
+.bp-vl{font-size:12px;font-weight:600;color:var(--m);white-space:nowrap}
+.bp-tot{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:6px;margin-top:8px;background:var(--m);color:#fff;font-weight:800;font-size:13px}
+.bp-sub{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:4px;background:#EEF3FF;color:var(--m);font-weight:700;font-size:12px;margin-top:6px}
+
+/* ── ÍNDICES FINANCEIROS ── */
+.ix-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ix-card{background:var(--card);border-radius:12px;padding:18px 14px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center;border-bottom:3px solid var(--bdr)}
+.ix-card.ok{border-bottom-color:var(--ok)}
+.ix-card.warn{border-bottom-color:var(--warn)}
+.ix-card.err{border-bottom-color:var(--err)}
+.ix-card.neu{border-bottom-color:var(--r)}
+.ix-v{font-size:26px;font-weight:800;color:var(--m);line-height:1.1}
+.ix-l{font-size:10px;color:var(--g);margin-top:5px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.ix-sub{font-size:9px;color:var(--g);margin-top:3px;opacity:.8}
+
+/* ── DFC ── */
+
+@media(max-width:1200px){.ix-grid{grid-template-columns:repeat(3,1fr)}.bp-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.ix-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading"><div class="spinner"></div><div>Processando arquivo...</div></div>
+
+<!-- Header -->
+<header id="hdr">
+  <div id="co-name">Dashboard Financeiro</div>
+  <div id="co-tabs"></div>
+  <div class="vd"></div>
+  <div class="fg"><span class="fl">Ano</span><div id="yr-btns" class="fg"></div></div>
+  <div class="vd"></div>
+  <div class="fg">
+    <span class="fl">Período</span>
+    <div class="ytd-wrap">
+      <button id="btn-mes" class="active" onclick="setYtd(false)">Mensal</button>
+      <button id="btn-ytd" onclick="setYtd(true)">Acumulado</button>
+    </div>
+    <div id="mo-btns" class="fg"></div>
+  </div>
+  <div class="sp"></div>
+  <span id="plbl"></span>
+  <label id="bal-btn" title="Carregar balancete">📋 Balancete <span id="bal-ok" style="display:none;background:var(--ok);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:800">✓</span>
+    <input type="file" id="bal-in" accept=".xlsx,.xls" multiple style="display:none">
+  </label>
+  <label id="up-btn" title="Adicionar arquivo(s)">+
+    <input type="file" id="file-in" accept=".xlsx,.xls" multiple style="display:none">
+  </label>
+</header>
+
+<!-- Empty state -->
+<div id="empty">
+  <div class="ei">📊</div>
+  <div class="et">Dashboard Financeiro</div>
+  <div class="es">Clique em <strong>+</strong> no canto superior direito, ou arraste um arquivo abaixo</div>
+  <label class="ua" for="file-in">
+    📎 Selecionar arquivo(s) Excel
+    <div class="ua-sub">Suporta exportação Totvs/Protheus (Conta Contábil + Data Contábil + Acc Dr/Acc Cr) e formato processado (Grupo + Mês + Movimento)</div>
+  </label>
+</div>
+
+<!-- Dashboard -->
+<main id="dash" style="display:none">
+
+  <!-- KPIs -->
+  <div class="sec">
+    <div id="kpis" class="kg"></div>
+  </div>
+
+  <!-- Revenue + Margins -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Análise de Receita</span><div class="sh-line"></div></div>
+    <div class="r21">
+      <div class="card">
+        <div class="ct">Receita Recorrente vs Não Recorrente</div>
+        <div class="cs">Evolução mensal — ano selecionado</div>
+        <div style="position:relative;height:265px"><canvas id="c-rev"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Evolução de Margens</div>
+        <div class="cs">% sobre Receita Líquida — mensal</div>
+        <div style="position:relative;height:265px"><canvas id="c-mgn"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRE + Bridge -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">DRE & Análise Bridge</span><div class="sh-line"></div></div>
+    <div class="r11">
+      <div class="card">
+        <div class="ct">Demonstração do Resultado — DRE</div>
+        <div class="cs" id="dre-lbl"></div>
+        <div class="tw" id="dre-tbl"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Bridge: Receita Líquida → EBITDA</div>
+        <div class="cs">Waterfall dos componentes operacionais</div>
+        <div style="position:relative;height:290px"><canvas id="c-brg"></canvas></div>
+        <div class="ct" style="margin-top:16px">Bridge: EBIT → Lucro Líquido</div>
+        <div class="cs">Resultado financeiro, LAIR e impostos</div>
+        <div style="position:relative;height:195px"><canvas id="c-brg2"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Costs -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Custos e Despesas</span><div class="sh-line"></div></div>
+    <div class="r12">
+      <div class="card">
+        <div class="ct">Composição — período</div>
+        <div class="cs">Distribuição por natureza</div>
+        <div style="position:relative;height:265px"><canvas id="c-donut"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Evolução Mensal de Custos</div>
+        <div class="cs">Ano selecionado — empilhado por natureza</div>
+        <div style="position:relative;height:265px"><canvas id="c-costs"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Detractors -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Principais Detratores do Resultado</span><div class="sh-line"></div></div>
+    <div class="card">
+      <div class="ct">Top 16 categorias por valor — período selecionado</div>
+      <div class="cs">Ranking por subgrupo contábil; % calculado sobre Receita Líquida</div>
+      <div id="det-content"></div>
+    </div>
+  </div>
+
+  <!-- Indicators -->
+  <div class="sec">
+    <div class="sh"><span class="sh-title">Indicadores Econômico-Financeiros</span><div class="sh-line"></div></div>
+    <div id="indicators" class="indg"></div>
+  </div>
+
+  <!-- Balanço Patrimonial -->
+  <div class="sec" id="sec-bp" style="display:none">
+    <div class="sh"><span class="sh-title">Balanço Patrimonial</span><div class="sh-line"></div></div>
+    <div class="bp-grid" id="bp-content"></div>
+  </div>
+
+  <!-- Índices Financeiros -->
+  <div class="sec" id="sec-ix" style="display:none">
+    <div class="sh"><span class="sh-title">Índices Financeiros</span><div class="sh-line"></div></div>
+    <div class="ix-grid" id="ix-content"></div>
+  </div>
+
+  <!-- DFC Método Indireto -->
+
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTES
+// ═══════════════════════════════════════════════
+const C={m:'#143A79',r:'#3C70DC',c:'#03CEFE',cl:'#D6F4FF',g:'#737373',
+  ok:'#10B981',err:'#EF4444',warn:'#F59E0B',pur:'#8B5CF6',org:'#F97316',teal:'#0891B2'};
+const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ═══════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════
+const S={companies:{},co:null,year:null,month:null,ytd:false,ch:{},balancetes:{}};
+
+// ═══════════════════════════════════════════════
+// FORMATAÇÃO
+// ═══════════════════════════════════════════════
+// Todos os valores monetários em R$ mil
+const fmtMil=v=>new Intl.NumberFormat('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}).format(v/1000);
+const fmtR=v=>fmtMil(v);   // tabelas e tooltips
+const fmtK=v=>fmtMil(v);   // KPI cards e gráficos
+const fmtP=v=>!isFinite(v)?'—':(v*100).toFixed(1)+'%';
+const yoy=(c,p)=>{if(!p||p===0)return null;const d=(c-p)/Math.abs(p);return{d,s:(d>=0?'▲ ':' ▼ ')+Math.abs(d*100).toFixed(1)+'%',pos:d>=0};};
+
+// ═══════════════════════════════════════════════
+// NORMALIZAÇÃO DE NOMES DE COLUNAS
+// ═══════════════════════════════════════════════
+const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+
+function getField(row,aliases){
+  for(const k of Object.keys(row)){
+    const nk=norm(k);
+    for(const a of aliases) if(norm(a)===nk) return row[k];
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+// PARSE EXCEL
+// ═══════════════════════════════════════════════
+
+// Mapa de prefixo de conta contábil (Totvs/Protheus) → grupo DRE
+function grupoFromConta(conta){
+  const c=String(conta||'').replace(/[^\d]/g,'');
+  if(!c) return '';
+  const p4=c.substring(0,4);
+  if(c.startsWith('31')) return 'RECEITA OPERACIONAL LÍQUIDA';
+  if(p4==='4101') return 'CUSTO DOS SERVIÇOS PRESTADOS';
+  if(p4==='4111') return 'Despesas comerciais';
+  if(p4==='4121') return 'Despesas gerais e administrativas';
+  if(p4==='4141') return 'Resultado não operacional';
+  if(p4==='4151') return 'Receitas financeiras';
+  if(p4==='4152') return 'Despesas financeiras';
+  if(p4==='4161') return 'Imposto de renda e contribuição social - correntes';
+  if(p4==='4162') return 'Imposto de renda e contribuição social - Diferidos';
+  return ''; // balanço patrimonial (1xxx, 2xxx) → ignorar
+}
+
+function parseFile(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+
+        // Lê como arrays para detectar a linha de cabeçalho (pode estar depois de linhas em branco)
+        const rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+
+        // Localiza a linha com os cabeçalhos das colunas
+        const HDR=['grupo','mes','movimento','conta','data','ano','debito','credito','acc','lancamento'];
+        let hdrIdx=0;
+        for(let i=0;i<Math.min(rawRows.length,20);i++){
+          const cells=(rawRows[i]||[]).filter(c=>c!=null&&String(c).trim());
+          if(cells.length>=3){
+            const joined=cells.map(c=>norm(String(c))).join(' ');
+            if(HDR.some(k=>joined.includes(k))){hdrIdx=i;break;}
+          }
+        }
+
+        // Constrói objetos usando a linha de cabeçalho detectada
+        const hdrs=(rawRows[hdrIdx]||[]);
+        const rows=rawRows.slice(hdrIdx+1).map(dataRow=>{
+          const obj={};
+          hdrs.forEach((h,i)=>{if(h!=null) obj[String(h)]=dataRow[i]!==undefined?dataRow[i]:null;});
+          return obj;
+        }).filter(obj=>Object.values(obj).some(v=>v!=null));
+
+        if(!rows.length) throw new Error('Planilha vazia');
+
+        const data=rows.map(row=>parseRow(row)).filter(r=>r&&r.ano&&r.mes&&r.grupo);
+        if(!data.length) throw new Error('Nenhuma linha reconhecida. Verifique se o arquivo é uma exportação Totvs/Protheus ou formato processado com coluna Grupo.');
+
+        let name=file.name
+          .replace(/\.xlsx?$/i,'')
+          .replace(/[_-]+/g,' ')
+          .replace(/\s*\([\d]+\)\s*$/,'')
+          .replace(/\s*(razao|razão|acumulado|geral|consolidado|2024|2025|2026)\s*/gi,' ')
+          .replace(/\s+/g,' ').trim()||'Empresa';
+        res({name,data});
+      }catch(err){rej(err);}
+    };
+    r.onerror=rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+// Parser universal — detecta colunas automaticamente
+function parseRow(row){
+  const g=(...a)=>getField(row,a);
+
+  // Grupo: coluna explícita OU derivado do código da Conta Contábil (Totvs/Protheus)
+  let grupo=String(g('Grupo','grupo')||'').trim();
+  if(!grupo){
+    const conta=g('Conta Contábil','Conta Contabil','contacontabil');
+    if(conta) grupo=grupoFromConta(conta);
+  }
+  if(!grupo) return null;
+
+  // Subgrupo — tenta vários nomes de coluna
+  const subgrupo=String(
+    g('Subgrupo','subgrupo')||
+    g('Descrição Conta Contábil','Descricao Conta Contabil','descricaocontacontabil')||
+    g('Nome da Conta','nomeconta','nomec')||
+    g('Nível 2','nivel2')||
+    g('Nível 1','nivel1')||''
+  ).trim();
+
+  // Ano e Mês — diretos ou extraídos de coluna de data
+  let ano=parseInt(g('Ano','ano')||0)||null;
+  let mes=parseInt(g('Mês','Mes','mes')||0)||null;
+
+  if(!mes||!ano){
+    const rawDate=g('Data Lançamento','Data Contábil','Data Contabil','datalan','datacontabil','data');
+    if(rawDate instanceof Date&&!isNaN(rawDate)){
+      // SheetJS retorna Date quando a célula está formatada como data no Excel
+      if(!mes) mes=rawDate.getMonth()+1;
+      if(!ano) ano=rawDate.getFullYear();
+    } else {
+      const ds=String(rawDate||'').trim();
+      if(ds){
+        const p=ds.split('/');
+        if(p.length===3){
+          if(!mes) mes=parseInt(p[1])||null;
+          if(!ano) ano=parseInt(p[2])||null;
+        } else if(!isNaN(ds)&&parseFloat(ds)>1000){
+          // número serial do Excel → converte para data
+          const d=new Date(Math.round((parseFloat(ds)-25569)*86400*1000));
+          if(!mes) mes=d.getUTCMonth()+1;
+          if(!ano) ano=d.getUTCFullYear();
+        }
+      }
+    }
+  }
+
+  // Movimento — direto ou calculado via Débito − Crédito (aceita Acc Dr/Acc Cr do Totvs)
+  let mov=parseFloat(g('Movimento','movimento')||NaN);
+  if(isNaN(mov)){
+    const deb=parseFloat(g('Débito','Debito','debito','Acc Dr','accdr')||0)||0;
+    const cre=parseFloat(g('Crédito','Credito','credito','Acc Cr','acccr')||0)||0;
+    if(deb||cre){
+      mov=deb-cre;
+    } else {
+      mov=parseFloat(g('Saldo','saldo')||0)||0;
+    }
+  }
+
+  // Descrição / Histórico
+  const desc=String(
+    g('Descrição','Descricao','descricao')||
+    g('Histórico','Historico','historico')||''
+  ).trim();
+
+  return{ano,mes,grupo,subgrupo,mov,desc};
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DA DRE
+// ═══════════════════════════════════════════════
+function calcDRE(data,year,month,ytd){
+  const d=data.filter(r=>{
+    if(r.ano!==year) return false;
+    if(ytd&&month!==null) return r.mes<=month;
+    if(month!==null) return r.mes===month;
+    return true;
+  });
+
+  const sumG=(grps,sgFn=null)=>d
+    .filter(r=>grps.includes(r.grupo)&&(!sgFn||sgFn(r.subgrupo)))
+    .reduce((s,r)=>s+r.mov,0);
+
+  const GRec='RECEITA OPERACIONAL LÍQUIDA';
+  const recorrente =-sumG([GRec],sg=>sg==='RECEITA COM SERVIÇOS - RECORRENTES');
+  const naoRecorr  =-sumG([GRec],sg=>sg==='RECEITA COM SERVIÇOS - NÃO RECORRENTES');
+  const naoFat     =-sumG([GRec],sg=>sg==='RECEITA COM SERVIÇOS - NÃO FATURADAS');
+  const receitaLiq =-sumG([GRec]);
+  const recBruta   =recorrente+naoRecorr+(naoFat<0?0:naoFat); // only count positive unbilled
+  const deducoes   =Math.max(0,recBruta-receitaLiq);
+
+  const cpv    =sumG(['CUSTO DOS SERVIÇOS PRESTADOS']);
+  const lBruto =receitaLiq-cpv;
+  const desCom =sumG(['Despesas comerciais']);
+  const desGA  =sumG(['Despesas gerais e administrativas']);
+
+  // D&A: subgrupos com DEPRECIA ou AMORTIZA dentro dos grupos de resultado
+  const DA_GRPS=['CUSTO DOS SERVIÇOS PRESTADOS','Despesas gerais e administrativas','Despesas comerciais'];
+  const da=d.filter(r=>DA_GRPS.includes(r.grupo)&&(r.subgrupo.includes('DEPRECIA')||r.subgrupo.includes('AMORTIZA')||r.subgrupo.includes('DEPREC.'))).reduce((s,r)=>s+r.mov,0);
+
+  const ebit  =lBruto-desCom-desGA;
+  const ebitda=ebit+da;
+
+  const recFin=-sumG(['Receitas financeiras']);
+  const desFin= sumG(['Despesas financeiras']);
+  const resFin =recFin-desFin;
+  const lair   =ebit+resFin;
+
+  const ir=sumG([
+    'Imposto de renda e contribuição social - correntes',
+    'Imposto de renda e contribuição social - Diferidos'
+  ]);
+  const lLiq=lair-ir;
+
+  const pct=v=>receitaLiq?v/receitaLiq:0;
+  return{
+    receitaLiq,recBruta,deducoes,recorrente,naoRecorr,naoFat,
+    cpv,lBruto,desCom,desGA,da,ebit,ebitda,
+    recFin,desFin,resFin,lair,ir,lLiq,
+    mgBruta:pct(lBruto),mgEBITDA:pct(ebitda),mgEBIT:pct(ebit),mgLiq:pct(lLiq),
+    pctRec:recBruta>0?recorrente/recBruta:0,
+  };
+}
+
+function calcMonthly(data,year){
+  return MN.map((_,i)=>calcDRE(data,year,i+1,false));
+}
+
+// ═══════════════════════════════════════════════
+// TOP DETRATORES
+// ═══════════════════════════════════════════════
+function topDet(data,year,month,ytd){
+  const d=data.filter(r=>{
+    if(r.ano!==year) return false;
+    if(ytd&&month!==null) return r.mes<=month;
+    if(month!==null) return r.mes===month;
+    return true;
+  });
+  const EXP=['CUSTO DOS SERVIÇOS PRESTADOS','Despesas comerciais','Despesas gerais e administrativas','Despesas financeiras'];
+  const m={};
+  d.filter(r=>EXP.includes(r.grupo)&&r.mov>0).forEach(r=>{
+    if(!m[r.subgrupo]) m[r.subgrupo]={sg:r.subgrupo,grp:r.grupo,v:0};
+    m[r.subgrupo].v+=r.mov;
+  });
+  return Object.values(m).sort((a,b)=>b.v-a.v).slice(0,16);
+}
+
+// ═══════════════════════════════════════════════
+// DESTROY CHART
+// ═══════════════════════════════════════════════
+const dc=id=>{if(S.ch[id]){S.ch[id].destroy();delete S.ch[id];}};
+
+// ═══════════════════════════════════════════════
+// KPI CARDS
+// ═══════════════════════════════════════════════
+function renderKPIs(dre,prev){
+  const items=[
+    {l:'Receita Líquida',   v:dre.receitaLiq, pv:prev?.receitaLiq,  sub:fmtP(dre.pctRec)+' recorrente', mg:null, cls:'k1'},
+    {l:'Lucro Bruto',       v:dre.lBruto,     pv:prev?.lBruto,      sub:'',                              mg:dre.mgBruta,   cls:''},
+    {l:'EBITDA',            v:dre.ebitda,     pv:prev?.ebitda,      sub:'',                              mg:dre.mgEBITDA,  cls:'k3'},
+    {l:'EBIT',              v:dre.ebit,       pv:prev?.ebit,        sub:'',                              mg:dre.mgEBIT,    cls:''},
+    {l:'Lucro Líquido',     v:dre.lLiq,       pv:prev?.lLiq,        sub:'',                              mg:dre.mgLiq,     cls:'k5'},
+  ];
+  document.getElementById('kpis').innerHTML=items.map(it=>{
+    const neg=it.v<0;
+    const yo=yoy(it.v,it.pv);
+    const mgBadge=it.mg!=null?`<span class="kb ${it.mg>=0?'neu':'neg'}">${fmtP(it.mg)}</span>`:'';
+    const yoBadge=yo?`<span class="kb ${yo.pos?'pos':'neg'}">${yo.s} a/a</span>`:'';
+    return`<div class="kpi ${it.cls}${neg?' kneg':''}">
+      <div class="kl">${it.l}</div>
+      <div class="kv${neg?' neg':''}">${fmtK(it.v)}</div>
+      <div class="ksub">${it.sub||'em R$ mil'}</div>
+      <div class="kbadges">${mgBadge}${yoBadge}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// DRE TABLE
+// ═══════════════════════════════════════════════
+function renderDRE(dre,prev,label){
+  document.getElementById('dre-lbl').textContent=label;
+  const RL=dre.receitaLiq;
+  const row=(name,val,pval,cls,indent=false)=>{
+    const mg=RL?val/RL:0;
+    const yo=yoy(val,pval);
+    const neg=val<0;
+    const ind=indent?'padding-left:20px':'';
+    const fw=cls.includes('t')||cls.includes('hl')||cls.includes('eb')?'font-weight:700':'';
+    return`<tr class="${cls}">
+      <td style="${ind};${fw}">${name}</td>
+      <td class="${neg?'tr':''}">${fmtR(val)}</td>
+      <td>${cls==='dr-s'?'':fmtP(mg)}</td>
+      <td class="${pval&&pval<0?'tr':''}">${pval!=null?fmtR(pval):'—'}</td>
+      <td class="${yo?(yo.pos?'tg':'tr'):''}">${yo?yo.s:'—'}</td>
+    </tr>`;
+  };
+  const sec=t=>`<tr class="dr-sec"><td colspan="5">${t}</td></tr>`;
+  const h=`<table class="dt"><thead><tr>
+    <th>Item</th><th>Período (R$ mil)</th><th>% RL</th><th>Ano Anterior (R$ mil)</th><th>Var.</th>
+  </tr></thead><tbody>`;
+  const b=[
+    sec('Receitas'),
+    row('Receita Recorrente',    dre.recorrente, prev?.recorrente, 'dr-s',true),
+    row('Receita Não Recorrente',dre.naoRecorr,  prev?.naoRecorr,  'dr-s',true),
+    dre.naoFat!==0?row('Serviços Não Faturados (ajuste)',dre.naoFat,prev?.naoFat,'dr-s',true):'',
+    row('(−) Deduções PIS/COFINS/ISS',-dre.deducoes,prev?-prev.deducoes:null,'dr-s',true),
+    row('Receita Líquida',       dre.receitaLiq, prev?.receitaLiq, 'dr-t'),
+    sec('Custos e Resultado Operacional'),
+    row('(−) Custo dos Serviços Prestados',-dre.cpv,prev?-prev.cpv:null,'dr-s',true),
+    row('Lucro Bruto',           dre.lBruto,     prev?.lBruto,     'dr-t'),
+    row('(−) Despesas Comerciais',-dre.desCom,   prev?-prev.desCom:null,'dr-s',true),
+    row('(−) Despesas G&A',      -dre.desGA,     prev?-prev.desGA:null, 'dr-s',true),
+    row('EBIT',                  dre.ebit,       prev?.ebit,       'dr-t'),
+    row('(+) Depreciação e Amortização',dre.da,  prev?.da,         'dr-s',true),
+    row('EBITDA',                dre.ebitda,     prev?.ebitda,     'dr-eb'),
+    sec('Resultado Financeiro e Impostos'),
+    row('(+) Receitas Financeiras',dre.recFin,   prev?.recFin,     'dr-s',true),
+    row('(−) Despesas Financeiras',-dre.desFin,  prev?-prev.desFin:null,'dr-s',true),
+    row('LAIR',                  dre.lair,       prev?.lair,       'dr-t'),
+    row('(−) IR e Contribuição Social',-dre.ir,  prev?-prev.ir:null,'dr-s',true),
+    row('Lucro Líquido',         dre.lLiq,       prev?.lLiq,       'dr-hl'),
+  ].join('');
+  document.getElementById('dre-tbl').innerHTML=h+b+'</tbody></table>';
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: RECEITA
+// ═══════════════════════════════════════════════
+function renderRevChart(monthly){
+  dc('rev');
+  const ctx=document.getElementById('c-rev').getContext('2d');
+  S.ch['rev']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:MN,
+      datasets:[
+        {label:'Recorrente',     data:monthly.map(m=>Math.round(m.recorrente)),    backgroundColor:C.m+'CC',stack:'s',order:2},
+        {label:'Não Recorrente', data:monthly.map(m=>Math.round(m.naoRecorr)),     backgroundColor:C.r+'CC',stack:'s',order:2},
+        {label:'% Recorrente',   data:monthly.map(m=>+(m.pctRec*100).toFixed(1)), type:'line',
+          borderColor:C.c,backgroundColor:'transparent',yAxisID:'pct',
+          tension:.35,pointRadius:3.5,pointBackgroundColor:C.c,borderWidth:2.5,order:1}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='pct'?c.dataset.label+': '+c.parsed.y+'%':c.dataset.label+': R$ '+fmtMil(c.parsed.y)+' mil'}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{ticks:{callback:v=>'R$'+fmtMil(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true},
+        pct:{position:'right',min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: MARGENS
+// ═══════════════════════════════════════════════
+function renderMgnChart(monthly){
+  dc('mgn');
+  const ctx=document.getElementById('c-mgn').getContext('2d');
+  const ds=(l,k,color,dash=[])=>({
+    label:l,
+    data:monthly.map(m=>isFinite(m[k])?+(m[k]*100).toFixed(1):null),
+    borderColor:color,backgroundColor:'transparent',tension:.35,
+    pointRadius:3,borderWidth:2,spanGaps:true,
+    borderDash:dash,pointBackgroundColor:color
+  });
+  S.ch['mgn']=new Chart(ctx,{
+    type:'line',
+    data:{labels:MN,datasets:[
+      ds('Mg. Bruta','mgBruta',C.r),
+      ds('EBITDA','mgEBITDA',C.c),
+      ds('EBIT','mgEBIT',C.m),
+      ds('Mg. Líquida','mgLiq',C.ok,[4,3])
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'#eff2f7'}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// WATERFALL HELPER
+// ═══════════════════════════════════════════════
+function mkWaterfall(canvasId,labels,values,types){
+  dc(canvasId);
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  let run=0;
+  const data=[];const bkg=[];
+  values.forEach((v,i)=>{
+    if(types[i]==='total'){
+      run=v;
+      data.push([0,v]);
+      bkg.push(v>=0?C.m:C.err);
+    } else if(types[i]==='sub'){
+      data.push([0,v]);
+      bkg.push(v>=0?C.r:C.err);
+    } else {
+      const s=run; run+=v;
+      data.push([Math.min(s,run),Math.max(s,run)]);
+      bkg.push(v>=0?C.ok:C.err);
+    }
+  });
+  S.ch[canvasId]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:bkg,borderRadius:3,borderSkipped:false,borderWidth:1,borderColor:'rgba(255,255,255,.4)'}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:c=>{const d=c.raw;return 'R$ '+fmtMil(Math.abs(d[1]-d[0]))+' mil';}
+        }}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}},
+        y:{ticks:{callback:v=>'R$'+fmtMil(v),font:{size:9}},grid:{color:'#eff2f7'}}
+      }
+    }
+  });
+}
+
+function renderBridge(dre){
+  const rl=dre.receitaLiq, cpv=dre.cpv, lb=dre.lBruto;
+  const dc2=dre.desCom, dga=dre.desGA, ebit=dre.ebit, da=dre.da, ebitda=dre.ebitda;
+  mkWaterfall('c-brg',
+    ['Rec.\nLíquida','(-) CPV','Lucro\nBruto','(-) Desp.\nCom.','(-) G&A','EBIT','(+) D&A','EBITDA'],
+    [rl,       -cpv,     lb,        -dc2,      -dga,   ebit,  da,    ebitda],
+    ['total','step',  'sub',  'step','step','sub','step','sub']
+  );
+  mkWaterfall('c-brg2',
+    ['EBIT','Res.\nFinanc.','LAIR','(-) IR & CS','Lucro\nLíquido'],
+    [ebit, dre.resFin, dre.lair, -dre.ir, dre.lLiq],
+    ['total','step','sub','step','total']
+  );
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: DONUT CUSTOS
+// ═══════════════════════════════════════════════
+function renderDonut(dre){
+  dc('donut');
+  const ctx=document.getElementById('c-donut').getContext('2d');
+  const lbs=['CPV','Desp. Comerciais','Desp. G&A','Desp. Financeiras'];
+  const vs=[dre.cpv,dre.desCom,dre.desGA,dre.desFin].map(v=>Math.max(0,v));
+  const tot=vs.reduce((a,b)=>a+b,0);
+  S.ch['donut']=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:lbs,datasets:[{data:vs,backgroundColor:[C.m,C.r,C.c,C.g],borderWidth:3,borderColor:'#fff',hoverOffset:4}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:10}},
+        tooltip:{callbacks:{label:c=>c.label+': R$ '+fmtMil(c.raw)+' mil ('+fmtP(tot?c.raw/tot:0)+')'}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// GRÁFICO: EVOLUÇÃO DE CUSTOS
+// ═══════════════════════════════════════════════
+function renderCostChart(monthly){
+  dc('costs');
+  const ctx=document.getElementById('c-costs').getContext('2d');
+  S.ch['costs']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:MN,
+      datasets:[
+        {label:'CPV',              data:monthly.map(m=>Math.round(m.cpv)),    backgroundColor:C.m+'CC',stack:'s'},
+        {label:'Desp. Comerciais', data:monthly.map(m=>Math.round(m.desCom)), backgroundColor:C.r+'CC',stack:'s'},
+        {label:'Desp. G&A',        data:monthly.map(m=>Math.round(m.desGA)),  backgroundColor:C.c+'99',stack:'s'},
+        {label:'Desp. Financeiras',data:monthly.map(m=>Math.round(m.desFin)), backgroundColor:C.g+'88',stack:'s'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{ticks:{callback:v=>'R$'+fmtMil(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// DETRATORES
+// ═══════════════════════════════════════════════
+function renderDetractors(dets,rl){
+  if(!dets.length){document.getElementById('det-content').innerHTML='<div style="padding:20px;color:var(--g);text-align:center">Sem dados para o período</div>';return;}
+  const max=dets[0].v||1;
+  const html=dets.map((d,i)=>`
+    <div class="det-row">
+      <div class="det-rk ${i<3?'top3':''}">${i+1}</div>
+      <div class="det-info">
+        <div class="det-nm">${d.sg}</div>
+        <div class="det-cat">${d.grp}</div>
+      </div>
+      <div class="det-bw"><div class="det-bar" style="width:${Math.round(d.v/max*100)}%"></div></div>
+      <div class="det-val">
+        <div class="det-amt">R$ ${fmtMil(d.v)} mil</div>
+        <div class="det-pct">${rl?fmtP(d.v/rl)+' RL':'—'}</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('det-content').innerHTML=`<div class="det-grid">${html}</div>`;
+}
+
+// ═══════════════════════════════════════════════
+// INDICADORES
+// ═══════════════════════════════════════════════
+function renderIndicators(dre){
+  const items=[
+    {l:'Margem Bruta',           v:dre.mgBruta,   cost:false},
+    {l:'Margem EBITDA',          v:dre.mgEBITDA,  cost:false},
+    {l:'Margem EBIT',            v:dre.mgEBIT,    cost:false},
+    {l:'Margem Líquida',         v:dre.mgLiq,     cost:false},
+    {l:'% Receita Recorrente',   v:dre.pctRec,    cost:false},
+    {l:'CPV / Receita Líquida',  v:dre.receitaLiq?dre.cpv/dre.receitaLiq:0, cost:true},
+    {l:'Desp. Op. / Rec. Líq.',  v:dre.receitaLiq?(dre.desCom+dre.desGA)/dre.receitaLiq:0, cost:true},
+    {l:'Resultado Fin. / EBIT',  v:dre.ebit?dre.resFin/Math.abs(dre.ebit):0, cost:false},
+  ];
+  document.getElementById('indicators').innerHTML=items.map(it=>{
+    const p=it.v*100;
+    let cls,bcls;
+    if(it.cost){cls=p<40?'ok':p<65?'warn':'err'; bcls=p<40?'ok':p<65?'warn':'err';}
+    else{cls=p>=10?'ok':p>=0?'warn':'err'; bcls=cls;}
+    return`<div class="ind ${bcls}">
+      <div class="iv">${fmtP(it.v)}</div>
+      <div class="il">${it.l}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// BALANCETE — CATEGORIZAÇÃO
+// ═══════════════════════════════════════════════
+function bsCat(classif){
+  const c=String(classif||'').trim();
+  const m=c.match(/^(\d+)[.\-](\d+)/);
+  if(m){
+    const a=parseInt(m[1]),b=parseInt(m[2]);
+    if(a===1) return b<=1?'AC':'ANC';
+    if(a===2){if(b<=1)return'PC';if(b===2)return'PNC';return'PL';}
+    return null;
+  }
+  const d=c.replace(/\D/g,'');
+  if(!d) return null;
+  const f=parseInt(d[0]);
+  if(f===1) return'AC';
+  if(f===2) return'PC';
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+// BALANCETE — PARSE
+// ═══════════════════════════════════════════════
+function parseBal(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
+
+        // Tenta todas as abas — usa a que tiver mais linhas com dado
+        const HDR=['classif','saldo','descri','codigo'];
+        let bestRawRows=[],bestHdrIdx=0;
+        for(const shName of wb.SheetNames){
+          const ws2=wb.Sheets[shName];
+          const rr=XLSX.utils.sheet_to_json(ws2,{header:1,defval:null,raw:true});
+          let hi=0;
+          for(let i=0;i<Math.min(rr.length,30);i++){
+            const cells=(rr[i]||[]).filter(c=>c!=null&&String(c).trim());
+            if(cells.length>=2){
+              const joined=cells.map(c=>norm(String(c))).join(' ');
+              if(HDR.some(k=>joined.includes(k))){hi=i;break;}
+            }
+          }
+          if(rr.length-hi>bestRawRows.length-bestHdrIdx){
+            bestRawRows=rr; bestHdrIdx=hi;
+          }
+        }
+        const rawRows=bestRawRows, hdrIdx=bestHdrIdx;
+
+        const hdrs=(rawRows[hdrIdx]||[]);
+        const rows=rawRows.slice(hdrIdx+1).map(dataRow=>{
+          const obj={};
+          hdrs.forEach((h,i2)=>{if(h!=null) obj[String(h)]=dataRow[i2]!==undefined?dataRow[i2]:null;});
+          return obj;
+        }).filter(obj=>Object.values(obj).some(v=>v!=null));
+
+        if(!rows.length) throw new Error(
+          'Planilha de balancete vazia.\n'+
+          'Abas encontradas: '+wb.SheetNames.join(', ')+'\n'+
+          'Colunas detectadas: '+(hdrs.filter(h=>h!=null).join(' | ')||'nenhuma')+'\n'+
+          'Total de linhas raw: '+rawRows.length
+        );
+
+        const g2=(...aliases)=>row=>getField(row,aliases);
+
+        const parseSaldo=v=>{
+          if(typeof v==='number') return v;
+          const s=String(v||'').trim().replace(/\s/g,'');
+          // BR format: 1.234,56 → remove dots, replace comma
+          if(/\d+\.\d{3}(,\d{1,2})?/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
+          return parseFloat(s.replace(',','.'))||0;
+        };
+
+        const accounts=[];
+        let year=null;
+        for(const row of rows){
+          // Tenta Classificação primeiro, depois Código
+          const classif=String(
+            getField(row,['Classificação','Classificacao','classif','Classif'])||
+            getField(row,['Código','Codigo','codigo','Conta','conta'])||''
+          ).trim();
+          const cat=bsCat(classif);
+          if(!cat) continue;
+
+          const desc=String(
+            getField(row,['Descrição da conta','Descricao da conta','Descricao','Descrição','descricao','descricao da conta','Nome','nome'])||
+            classif
+          ).trim();
+
+          const saldo=parseSaldo(getField(row,['Saldo Atual','saldo atual','SaldoAtual','saldoatual','Saldo Final','saldo final']));
+          const saldoAnt=parseSaldo(getField(row,['Saldo Anterior','saldo anterior','SaldoAnterior','saldoanterior','Saldo Inicial','saldo inicial']));
+
+          if(!saldo&&!saldoAnt) continue; // pula linhas sem valor
+          accounts.push({classif,cat,desc,saldo,saldoAnt});
+        }
+
+        if(!accounts.length) throw new Error('Nenhuma conta de balanço reconhecida no balancete. Verifique se a coluna "Classificação" contém códigos como "1.01.xxx".');
+
+        // Tenta detectar o ano do nome do arquivo
+        const ym=file.name.match(/\b(20\d{2})\b/);
+        year=ym?parseInt(ym[1]):new Date().getFullYear();
+
+        let name=file.name
+          .replace(/\.xlsx?$/i,'')
+          .replace(/[_-]+/g,' ')
+          .replace(/\s*(balancete|balanço|balanco|2024|2025|2026|2023)\s*/gi,' ')
+          .replace(/\s+/g,' ').trim()||'Empresa';
+
+        res({name,year,accounts});
+      }catch(err){rej(err);}
+    };
+    r.onerror=rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DO BALANÇO PATRIMONIAL
+// ═══════════════════════════════════════════════
+function calcBP(accounts){
+  const cats=['AC','ANC','PC','PNC','PL'];
+  const byCat={AC:[],ANC:[],PC:[],PNC:[],PL:[]};
+  for(const a of accounts){
+    if(byCat[a.cat]) byCat[a.cat].push(a);
+  }
+
+  // Sign fix for Totvs: liabilities may be stored as negatives (credits)
+  const fixSign=(cat,arr)=>{
+    const total=arr.reduce((s,a)=>s+a.saldo,0);
+    if(cat!=='AC'&&cat!=='ANC'&&total<0) return arr.map(a=>({...a,saldo:-a.saldo}));
+    return arr;
+  };
+
+  const fixed={};
+  for(const cat of cats) fixed[cat]=fixSign(cat,byCat[cat]);
+
+  const sum=cat=>fixed[cat].reduce((s,a)=>s+a.saldo,0);
+  const AC=sum('AC'), ANC=sum('ANC'), PC=sum('PC'), PNC=sum('PNC'), PL=sum('PL');
+  const AT=AC+ANC;
+  const PT=PC+PNC+PL;
+
+  // Caixa: AC com /caixa|banco|aplicac|disponib/i
+  const caixa=fixed['AC'].filter(a=>/caixa|banco|aplicac|disponib/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
+  // Estoques
+  const estoques=fixed['AC'].filter(a=>/estoque|mercadori|produto/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
+  // ARLP: ANC sem imobilizado/intangível
+  const ARLP=fixed['ANC'].filter(a=>!/imobil|intang|deprec|direito/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
+
+  // Grupos top 8 por |saldo| para cada categoria
+  const topGrp=arr=>arr
+    .filter(a=>Math.abs(a.saldo)>1)
+    .sort((a,b)=>Math.abs(b.saldo)-Math.abs(a.saldo))
+    .slice(0,8)
+    .map(a=>[a.desc,a.saldo]);
+
+  return{
+    AC,ANC,AT,PC,PNC,PL,PT,caixa,estoques,ARLP,
+    grpAC:topGrp(fixed['AC']),
+    grpANC:topGrp(fixed['ANC']),
+    grpPC:topGrp(fixed['PC']),
+    grpPNC:topGrp(fixed['PNC']),
+    grpPL:topGrp(fixed['PL'])
+  };
+}
+
+// ═══════════════════════════════════════════════
+// CÁLCULO DOS ÍNDICES (BP + DRE)
+// ═══════════════════════════════════════════════
+function calcIndicesBP(bp,dre){
+  const safe=(n,d2)=>d2&&d2!==0?n/d2:null;
+  const divBruta=bp.PC+bp.PNC;
+  const divLiq=divBruta-bp.caixa;
+  const liqCorr=safe(bp.AC,bp.PC);
+  const liqSeca=safe(bp.AC-bp.estoques,bp.PC);
+  const liqImed=safe(bp.caixa,bp.PC);
+  const liqGeral=safe(bp.AC+bp.ARLP,bp.PC+bp.PNC);
+  const endivGeral=safe(divBruta,bp.AT);
+  const compEndiv=safe(bp.PC,divBruta);
+  const capGiro=bp.AC-bp.PC;
+  const roe=dre?safe(dre.lLiq,bp.PL):null;
+  const roa=dre?safe(dre.lLiq,bp.AT):null;
+  const margemEbitda=dre?dre.mgEBITDA:null;
+  const divLiqEbitda=dre&&dre.ebitda?safe(divLiq,dre.ebitda):null;
+  return{liqCorr,liqSeca,liqImed,liqGeral,endivGeral,compEndiv,capGiro,roe,roa,margemEbitda,divLiqEbitda,divBruta,divLiq};
+}
+
+
+// ═══════════════════════════════════════════════
+// RENDER — BALANÇO PATRIMONIAL
+// ═══════════════════════════════════════════════
+function renderBP(bp){
+  const fv=v=>fmtMil(v);
+  const rows=grp=>grp.map(([nm,vl])=>`<div class="bp-row"><span class="bp-nm">${nm}</span><span class="bp-vl">${fv(vl)}</span></div>`).join('');
+
+  const ativoHtml=`
+    <div class="bp-side">
+      <div class="bp-hdr">Ativo</div>
+      <div class="bp-grp">Ativo Circulante</div>
+      ${rows(bp.grpAC)}
+      <div class="bp-sub"><span>Total AC</span><span>${fv(bp.AC)}</span></div>
+      <div class="bp-grp">Ativo Não Circulante</div>
+      ${rows(bp.grpANC)}
+      <div class="bp-sub"><span>Total ANC</span><span>${fv(bp.ANC)}</span></div>
+      <div class="bp-tot"><span>TOTAL ATIVO</span><span>${fv(bp.AT)}</span></div>
+    </div>`;
+
+  const passHtml=`
+    <div class="bp-side">
+      <div class="bp-hdr">Passivo + Patrimônio Líquido</div>
+      <div class="bp-grp">Passivo Circulante</div>
+      ${rows(bp.grpPC)}
+      <div class="bp-sub"><span>Total PC</span><span>${fv(bp.PC)}</span></div>
+      <div class="bp-grp">Passivo Não Circulante</div>
+      ${rows(bp.grpPNC)}
+      <div class="bp-sub"><span>Total PNC</span><span>${fv(bp.PNC)}</span></div>
+      <div class="bp-grp">Patrimônio Líquido</div>
+      ${rows(bp.grpPL)}
+      <div class="bp-sub"><span>Total PL</span><span>${fv(bp.PL)}</span></div>
+      <div class="bp-tot"><span>TOTAL PASSIVO + PL</span><span>${fv(bp.PT)}</span></div>
+    </div>`;
+
+  document.getElementById('bp-content').innerHTML=ativoHtml+passHtml;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER — ÍNDICES FINANCEIROS
+// ═══════════════════════════════════════════════
+function renderIndicesBP(ix){
+  const fmtX=v=>v!=null?v.toFixed(2)+'x':'—';
+  const fmtPct=v=>v!=null?fmtP(v):'—';
+  const fmtM=v=>v!=null?'R$ '+fmtMil(v)+' mil':'—';
+
+  const liqCls=v=>{if(v===null)return'neu';return v>=1.5?'ok':v>=1?'warn':'err';};
+  const endCls=v=>{if(v===null)return'neu';return v<=.4?'ok':v<=.65?'warn':'err';};
+  const roeCls=v=>{if(v===null)return'neu';return v>=.15?'ok':v>=.05?'warn':'err';};
+  const dleCls=v=>{if(v===null)return'neu';return v<=2?'ok':v<=4?'warn':'err';};
+
+  const cards=[
+    {v:fmtX(ix.liqCorr),  l:'Liquidez Corrente',      sub:'AC / PC',                    cls:liqCls(ix.liqCorr)},
+    {v:fmtX(ix.liqSeca),  l:'Liquidez Seca',           sub:'(AC − Est.) / PC',           cls:liqCls(ix.liqSeca)},
+    {v:fmtX(ix.liqImed),  l:'Liquidez Imediata',       sub:'Caixa / PC',                 cls:liqCls(ix.liqImed)},
+    {v:fmtX(ix.liqGeral), l:'Liquidez Geral',          sub:'(AC+ARLP) / (PC+PNC)',       cls:liqCls(ix.liqGeral)},
+    {v:fmtPct(ix.endivGeral), l:'Endividamento Geral', sub:'Dív. Bruta / AT',            cls:endCls(ix.endivGeral)},
+    {v:fmtPct(ix.compEndiv),  l:'Comp. Endividamento', sub:'PC / Dív. Bruta',            cls:endCls(ix.compEndiv)},
+    {v:fmtM(ix.capGiro),      l:'Capital de Giro Líq.',sub:'AC − PC',                   cls:'neu'},
+    {v:fmtPct(ix.roe),        l:'ROE',                 sub:'Lucro Líq. / PL',            cls:roeCls(ix.roe)},
+    {v:fmtPct(ix.roa),        l:'ROA',                 sub:'Lucro Líq. / AT',            cls:roeCls(ix.roa)},
+    {v:fmtPct(ix.margemEbitda),l:'Margem EBITDA',      sub:'EBITDA / Rec. Líquida',      cls:ix.margemEbitda!=null?(ix.margemEbitda>=.15?'ok':ix.margemEbitda>=.05?'warn':'err'):'neu'},
+    {v:ix.divLiqEbitda!=null?ix.divLiqEbitda.toFixed(2)+'x':'—',l:'Dívida Líq./EBITDA',sub:'(PC+PNC−Cx) / EBITDA',cls:dleCls(ix.divLiqEbitda)},
+    {v:fmtM(ix.divBruta), l:'Dívida Bruta',            sub:'PC + PNC',                   cls:'neu'},
+  ];
+
+  document.getElementById('ix-content').innerHTML=cards.map(c=>`
+    <div class="ix-card ${c.cls}">
+      <div class="ix-v">${c.v}</div>
+      <div class="ix-l">${c.l}</div>
+      <div class="ix-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+
+// ═══════════════════════════════════════════════
+// UPDATE PRINCIPAL
+// ═══════════════════════════════════════════════
+function update(){
+  const data=S.companies[S.co];
+  if(!data) return;
+  const{year:yr,month:mo,ytd}=S;
+
+  const dre=calcDRE(data,yr,mo,ytd);
+  const prev=calcDRE(data,yr-1,mo,ytd);
+  const monthly=calcMonthly(data,yr);
+  const dets=topDet(data,yr,mo,ytd);
+
+  // Period label
+  let lbl;
+  if(mo===null) lbl=`Ano ${yr}`;
+  else if(ytd)  lbl=`Acum. Jan–${MN[mo-1]}/${yr}`;
+  else          lbl=`${MN[mo-1]}/${yr}`;
+  document.getElementById('plbl').textContent=lbl;
+
+  const dreLabel=mo===null?`Exercício ${yr} vs ${yr-1}`
+    :ytd?`Acumulado Jan–${MN[mo-1]}/${yr} vs ${yr-1}`
+    :`${MN[mo-1]}/${yr} vs ${MN[mo-1]}/${yr-1}`;
+
+  const renders=[
+    ['KPIs',       ()=>renderKPIs(dre,prev)],
+    ['DRE',        ()=>renderDRE(dre,prev,dreLabel)],
+    ['RevChart',   ()=>renderRevChart(monthly)],
+    ['MgnChart',   ()=>renderMgnChart(monthly)],
+    ['Bridge',     ()=>renderBridge(dre)],
+    ['Donut',      ()=>renderDonut(dre)],
+    ['CostChart',  ()=>renderCostChart(monthly)],
+    ['Detractors', ()=>renderDetractors(dets,dre.receitaLiq)],
+    ['Indicators', ()=>renderIndicators(dre)],
+  ];
+  for(const [,fn] of renders){try{fn();}catch(e){console.error(e);}}
+
+  // DFC
+
+  // BP e Índices
+  const nc=norm(S.co);
+  const balKey=Object.keys(S.balancetes).find(k=>{const nk=norm(k);return nk===nc||nc.includes(nk)||nk.includes(nc);})||Object.keys(S.balancetes)[0];
+  const balByYear=S.balancetes[balKey]||{};
+  const balAccts=balByYear[yr]||balByYear[Object.keys(balByYear).sort().pop()];
+  if(balAccts){
+    document.getElementById('sec-bp').style.display='';
+    document.getElementById('sec-ix').style.display='';
+    try{
+      const bp=calcBP(balAccts);
+      const ix=calcIndicesBP(bp,dre);
+      renderBP(bp);
+      renderIndicesBP(ix);
+    }catch(e){
+      console.error('Erro BP/Índices:',e);
+      document.getElementById('bp-content').innerHTML='<div style="color:#f66;padding:8px">Erro ao renderizar: '+e.message+'</div>';
+    }
+  }else{
+    document.getElementById('sec-bp').style.display='none';
+    document.getElementById('sec-ix').style.display='none';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// UI BUILDERS
+// ═══════════════════════════════════════════════
+function buildYearBtns(){
+  const years=[...new Set((S.companies[S.co]||[]).map(r=>r.ano))].filter(Boolean).sort();
+  if(years.length&&!years.includes(S.year)) S.year=years[years.length-1];
+  document.getElementById('yr-btns').innerHTML=years.map(y=>
+    `<button class="fbtn${y===S.year?' active':''}" onclick="setYear(${y})">${y}</button>`
+  ).join('');
+}
+
+function buildMonthBtns(){
+  const data=S.companies[S.co]||[];
+  const avail=new Set(data.filter(r=>r.ano===S.year).map(r=>r.mes));
+  const btns=MN.map((m,i)=>{
+    const n=i+1, ok=avail.has(n);
+    return`<button class="fbtn${S.month===n?' active':''}" onclick="setMonth(${n})"${ok?'':' disabled'}>${m}</button>`;
+  });
+  btns.push(`<button class="fbtn${S.month===null?' active':''}" onclick="setMonth(null)">Ano</button>`);
+  document.getElementById('mo-btns').innerHTML=btns.join('');
+}
+
+function buildCoTabs(){
+  const names=Object.keys(S.companies);
+  document.getElementById('co-tabs').innerHTML=
+    names.length>1?names.map(n=>`<button class="co-tab${n===S.co?' active':''}" onclick="setCo(${JSON.stringify(n)})">▪ ${n}</button>`).join(''):'';
+  document.getElementById('co-name').textContent=S.co||'Dashboard Financeiro';
+}
+
+// ═══════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════
+window.setYear=y=>{S.year=y;buildYearBtns();buildMonthBtns();update();};
+window.setMonth=m=>{S.month=m;buildMonthBtns();update();};
+window.setYtd=v=>{
+  S.ytd=v;
+  document.getElementById('btn-mes').classList.toggle('active',!v);
+  document.getElementById('btn-ytd').classList.toggle('active',v);
+  update();
+};
+window.setCo=n=>{S.co=n;buildCoTabs();buildYearBtns();buildMonthBtns();update();};
+
+async function processFiles(files){
+  document.getElementById('loading').classList.add('on');
+  for(var i=0;i<files.length;i++){
+    try{
+      var result=await parseFile(files[i]);
+      S.companies[result.name]=result.data;
+      if(!S.co) S.co=result.name;
+    }catch(err){alert('Erro ao ler "'+files[i].name+'":\n'+err.message);}
+  }
+  document.getElementById('loading').classList.remove('on');
+  if(!Object.keys(S.companies).length) return;
+  document.getElementById('empty').style.display='none';
+  document.getElementById('dash').style.display='block';
+  buildCoTabs();
+  buildYearBtns();
+  var d=S.companies[S.co]||[];
+  var avail=d.filter(function(r){return r.ano===S.year;}).map(function(r){return r.mes;});
+  var maxMo=avail.length?Math.max.apply(null,avail):null;
+  S.month=(maxMo&&maxMo>=1&&maxMo<=12)?maxMo:null;
+  buildMonthBtns();
+  update();
+}
+
+document.getElementById('file-in').addEventListener('change',function(e){
+  var files=Array.prototype.slice.call(e.target.files);
+  if(!files.length) return;
+  processFiles(files);
+  this.value='';
+});
+
+document.getElementById('bal-in').addEventListener('change',function(e){
+  var files=Array.prototype.slice.call(e.target.files);
+  if(!files.length) return;
+  processBalFiles(files);
+  this.value='';
+});
+
+async function processBalFiles(files){
+  document.getElementById('loading').classList.add('on');
+  var ok=0;
+  for(var i=0;i<files.length;i++){
+    try{
+      var r=await parseBal(files[i]);
+      if(!S.balancetes[r.name]) S.balancetes[r.name]={};
+      S.balancetes[r.name][r.year]=r.accounts;
+      ok++;
+    }catch(err){alert('Erro ao ler balancete "'+files[i].name+'":\n'+err.message);}
+  }
+  document.getElementById('loading').classList.remove('on');
+  var badge=document.getElementById('bal-ok');
+  if(badge) badge.style.display=ok?'inline':'none';
+  if(S.co) update();
+}
+
+// Drag & drop — compatible with all browsers (no DataTransfer constructor)
+document.addEventListener('dragover',function(e){e.preventDefault();e.dataTransfer.dropEffect='copy';});
+document.addEventListener('dragleave',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){
+  e.preventDefault();
+  var files=Array.prototype.slice.call(e.dataTransfer.files).filter(function(f){return /\.xlsx?$/i.test(f.name);});
+  if(files.length) processFiles(files);
+});
+</script>
+</body>
+</html>
