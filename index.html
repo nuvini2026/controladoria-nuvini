@@ -348,8 +348,9 @@ function parseFile(file){
         }).filter(obj=>Object.values(obj).some(v=>v!=null));
 
         if(!rows.length) throw new Error('Planilha vazia');
+
         const data=rows.map(row=>parseRow(row)).filter(r=>r&&r.ano&&r.mes&&r.grupo);
-        if(!data.length) throw new Error('Nenhuma linha reconhecida. Verifique se o arquivo é um razão contábil exportado do Totvs/Protheus ou contém as colunas: Grupo (ou Conta Contábil), Data Contábil, Acc Dr/Acc Cr.');
+        if(!data.length) throw new Error('Nenhuma linha reconhecida. Verifique se o arquivo é uma exportação Totvs/Protheus ou formato processado com coluna Grupo.');
 
         let name=file.name
           .replace(/\.xlsx?$/i,'')
@@ -821,6 +822,7 @@ function update(){
   const data=S.companies[S.co];
   if(!data) return;
   const{year:yr,month:mo,ytd}=S;
+
   const dre=calcDRE(data,yr,mo,ytd);
   const prev=calcDRE(data,yr-1,mo,ytd);
   const monthly=calcMonthly(data,yr);
@@ -837,16 +839,18 @@ function update(){
     :ytd?`Acumulado Jan–${MN[mo-1]}/${yr} vs ${yr-1}`
     :`${MN[mo-1]}/${yr} vs ${MN[mo-1]}/${yr-1}`;
 
-  renderKPIs(dre,prev);
-  renderDRE(dre,prev,dreLabel);
-  renderRevChart(monthly);
-  renderMgnChart(monthly);
-  renderBridge(dre);
-  renderDonut(dre);
-  renderCostChart(monthly);
-  renderDetractors(dets,dre.receitaLiq);
-  renderIndicators(dre);
-}
+  const renders=[
+    ['KPIs',       ()=>renderKPIs(dre,prev)],
+    ['DRE',        ()=>renderDRE(dre,prev,dreLabel)],
+    ['RevChart',   ()=>renderRevChart(monthly)],
+    ['MgnChart',   ()=>renderMgnChart(monthly)],
+    ['Bridge',     ()=>renderBridge(dre)],
+    ['Donut',      ()=>renderDonut(dre)],
+    ['CostChart',  ()=>renderCostChart(monthly)],
+    ['Detractors', ()=>renderDetractors(dets,dre.receitaLiq)],
+    ['Indicators', ()=>renderIndicators(dre)],
+  ];
+  for(const [,fn] of renders){try{fn();}catch(e){console.error(e);}}
 
 // ═══════════════════════════════════════════════
 // UI BUILDERS
