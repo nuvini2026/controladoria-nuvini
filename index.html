@@ -176,7 +176,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="es">Clique em <strong>+</strong> no canto superior direito, ou arraste um arquivo abaixo</div>
   <label class="ua" for="file-in">
     📎 Selecionar arquivo(s) Excel
-    <div class="ua-sub">Formato esperado: razão contábil com colunas Ano, Mês, Grupo, Subgrupo, Movimento, Descrição</div>
+    <div class="ua-sub">Suporta exportação Totvs/Protheus (Conta Contábil + Data Contábil + Acc Dr/Acc Cr) e formato processado (Grupo + Mês + Movimento)</div>
   </label>
 </div>
 
@@ -276,14 +276,10 @@ const S={companies:{},co:null,year:null,month:null,ytd:false,ch:{}};
 // ═══════════════════════════════════════════════
 // FORMATAÇÃO
 // ═══════════════════════════════════════════════
-const fmtR=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);
-const fmtK=v=>{
-  const a=Math.abs(v);
-  if(a===0) return 'R$ 0';
-  if(a>=1e6) return 'R$ '+(v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'M';
-  if(a>=1e3) return 'R$ '+(v/1e3).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0})+'k';
-  return fmtR(v);
-};
+// Todos os valores monetários em R$ mil
+const fmtMil=v=>new Intl.NumberFormat('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}).format(v/1000);
+const fmtR=v=>fmtMil(v);   // tabelas e tooltips
+const fmtK=v=>fmtMil(v);   // KPI cards e gráficos
 const fmtP=v=>!isFinite(v)?'—':(v*100).toFixed(1)+'%';
 const yoy=(c,p)=>{if(!p||p===0)return null;const d=(c-p)/Math.abs(p);return{d,s:(d>=0?'▲ ':' ▼ ')+Math.abs(d*100).toFixed(1)+'%',pos:d>=0};};
 
@@ -303,6 +299,24 @@ function getField(row,aliases){
 // ═══════════════════════════════════════════════
 // PARSE EXCEL
 // ═══════════════════════════════════════════════
+
+// Mapa de prefixo de conta contábil (Totvs/Protheus) → grupo DRE
+function grupoFromConta(conta){
+  const c=String(conta||'').replace(/[^\d]/g,'');
+  if(!c) return '';
+  const p4=c.substring(0,4);
+  if(c.startsWith('31')) return 'RECEITA OPERACIONAL LÍQUIDA';
+  if(p4==='4101') return 'CUSTO DOS SERVIÇOS PRESTADOS';
+  if(p4==='4111') return 'Despesas comerciais';
+  if(p4==='4121') return 'Despesas gerais e administrativas';
+  if(p4==='4141') return 'Resultado não operacional';
+  if(p4==='4151') return 'Receitas financeiras';
+  if(p4==='4152') return 'Despesas financeiras';
+  if(p4==='4161') return 'Imposto de renda e contribuição social - correntes';
+  if(p4==='4162') return 'Imposto de renda e contribuição social - Diferidos';
+  return ''; // balanço patrimonial (1xxx, 2xxx) → ignorar
+}
+
 function parseFile(file){
   return new Promise((res,rej)=>{
     const r=new FileReader();
@@ -310,24 +324,38 @@ function parseFile(file){
       try{
         const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:true});
-        const data=rows.map(row=>{
-          const g=(...a)=>getField(row,a);
-          return{
-            ano:parseInt(g('Ano','ano')||0)||null,
-            mes:parseInt(g('Mês','Mes','mes')||0)||null,
-            grupo:String(g('Grupo','grupo')||'').trim(),
-            subgrupo:String(g('Subgrupo','subgrupo')||'').trim(),
-            mov:parseFloat(g('Movimento','movimento')||0)||0,
-            desc:String(g('Descrição','Descricao','descricao')||'').trim(),
-          };
-        }).filter(r=>r.ano&&r.mes&&r.grupo);
-        // Nome da empresa a partir do nome do arquivo
+
+        // Lê como arrays para detectar a linha de cabeçalho (pode estar depois de linhas em branco)
+        const rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+
+        // Localiza a linha com os cabeçalhos das colunas
+        const HDR=['grupo','mes','movimento','conta','data','ano','debito','credito','acc','lancamento'];
+        let hdrIdx=0;
+        for(let i=0;i<Math.min(rawRows.length,20);i++){
+          const cells=(rawRows[i]||[]).filter(c=>c!=null&&String(c).trim());
+          if(cells.length>=3){
+            const joined=cells.map(c=>norm(String(c))).join(' ');
+            if(HDR.some(k=>joined.includes(k))){hdrIdx=i;break;}
+          }
+        }
+
+        // Constrói objetos usando a linha de cabeçalho detectada
+        const hdrs=(rawRows[hdrIdx]||[]);
+        const rows=rawRows.slice(hdrIdx+1).map(dataRow=>{
+          const obj={};
+          hdrs.forEach((h,i)=>{if(h!=null) obj[String(h)]=dataRow[i]!==undefined?dataRow[i]:null;});
+          return obj;
+        }).filter(obj=>Object.values(obj).some(v=>v!=null));
+
+        if(!rows.length) throw new Error('Planilha vazia');
+        const data=rows.map(row=>parseRow(row)).filter(r=>r&&r.ano&&r.mes&&r.grupo);
+        if(!data.length) throw new Error('Nenhuma linha reconhecida. Verifique se o arquivo é um razão contábil exportado do Totvs/Protheus ou contém as colunas: Grupo (ou Conta Contábil), Data Contábil, Acc Dr/Acc Cr.');
+
         let name=file.name
           .replace(/\.xlsx?$/i,'')
-          .replace(/[_]/g,' ')
+          .replace(/[_-]+/g,' ')
           .replace(/\s*\([\d]+\)\s*$/,'')
-          .replace(/\s*(razao|razão|acumulado|geral|2024|2025|2026)\s*/gi,' ')
+          .replace(/\s*(razao|razão|acumulado|geral|consolidado|2024|2025|2026)\s*/gi,' ')
           .replace(/\s+/g,' ').trim()||'Empresa';
         res({name,data});
       }catch(err){rej(err);}
@@ -335,6 +363,68 @@ function parseFile(file){
     r.onerror=rej;
     r.readAsArrayBuffer(file);
   });
+}
+
+// Parser universal — detecta colunas automaticamente
+function parseRow(row){
+  const g=(...a)=>getField(row,a);
+
+  // Grupo: coluna explícita OU derivado do código da Conta Contábil (Totvs/Protheus)
+  let grupo=String(g('Grupo','grupo')||'').trim();
+  if(!grupo){
+    const conta=g('Conta Contábil','Conta Contabil','contacontabil');
+    if(conta) grupo=grupoFromConta(conta);
+  }
+  if(!grupo) return null;
+
+  // Subgrupo — tenta vários nomes de coluna
+  const subgrupo=String(
+    g('Subgrupo','subgrupo')||
+    g('Descrição Conta Contábil','Descricao Conta Contabil','descricaocontacontabil')||
+    g('Nome da Conta','nomeconta','nomec')||
+    g('Nível 2','nivel2')||
+    g('Nível 1','nivel1')||''
+  ).trim();
+
+  // Ano e Mês — diretos ou extraídos de coluna de data
+  let ano=parseInt(g('Ano','ano')||0)||null;
+  let mes=parseInt(g('Mês','Mes','mes')||0)||null;
+
+  if(!mes||!ano){
+    const ds=String(g('Data Lançamento','Data Contábil','Data Contabil','datalan','datacontabil','data')||'').trim();
+    if(ds){
+      const p=ds.split('/');
+      if(p.length===3){
+        if(!mes) mes=parseInt(p[1])||null;
+        if(!ano) ano=parseInt(p[2])||null;
+      } else if(!isNaN(ds)&&parseFloat(ds)>1000){
+        // número serial do Excel → converte para data
+        const d=new Date(Math.round((parseFloat(ds)-25569)*86400*1000));
+        if(!mes) mes=d.getUTCMonth()+1;
+        if(!ano) ano=d.getUTCFullYear();
+      }
+    }
+  }
+
+  // Movimento — direto ou calculado via Débito − Crédito (aceita Acc Dr/Acc Cr do Totvs)
+  let mov=parseFloat(g('Movimento','movimento')||NaN);
+  if(isNaN(mov)){
+    const deb=parseFloat(g('Débito','Debito','debito','Acc Dr','accdr')||0)||0;
+    const cre=parseFloat(g('Crédito','Credito','credito','Acc Cr','acccr')||0)||0;
+    if(deb||cre){
+      mov=deb-cre;
+    } else {
+      mov=parseFloat(g('Saldo','saldo')||0)||0;
+    }
+  }
+
+  // Descrição / Histórico
+  const desc=String(
+    g('Descrição','Descricao','descricao')||
+    g('Histórico','Historico','historico')||''
+  ).trim();
+
+  return{ano,mes,grupo,subgrupo,mov,desc};
 }
 
 // ═══════════════════════════════════════════════
@@ -440,7 +530,7 @@ function renderKPIs(dre,prev){
     return`<div class="kpi ${it.cls}${neg?' kneg':''}">
       <div class="kl">${it.l}</div>
       <div class="kv${neg?' neg':''}">${fmtK(it.v)}</div>
-      ${it.sub?`<div class="ksub">${it.sub}</div>`:''}
+      <div class="ksub">${it.sub||'em R$ mil'}</div>
       <div class="kbadges">${mgBadge}${yoBadge}</div>
     </div>`;
   }).join('');
@@ -468,7 +558,7 @@ function renderDRE(dre,prev,label){
   };
   const sec=t=>`<tr class="dr-sec"><td colspan="5">${t}</td></tr>`;
   const h=`<table class="dt"><thead><tr>
-    <th>Item</th><th>Período</th><th>% RL</th><th>Ano Anterior</th><th>Var.</th>
+    <th>Item</th><th>Período (R$ mil)</th><th>% RL</th><th>Ano Anterior (R$ mil)</th><th>Var.</th>
   </tr></thead><tbody>`;
   const b=[
     sec('Receitas'),
@@ -517,11 +607,11 @@ function renderRevChart(monthly){
       responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}},
-        tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='pct'?c.dataset.label+': '+c.parsed.y+'%':c.dataset.label+': '+fmtK(c.parsed.y)}}
+        tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='pct'?c.dataset.label+': '+c.parsed.y+'%':c.dataset.label+': R$ '+fmtMil(c.parsed.y)+' mil'}}
       },
       scales:{
         x:{grid:{display:false},ticks:{font:{size:11}}},
-        y:{ticks:{callback:v=>fmtK(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true},
+        y:{ticks:{callback:v=>'R$'+fmtMil(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true},
         pct:{position:'right',min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{display:false}}
       }
     }
@@ -593,12 +683,12 @@ function mkWaterfall(canvasId,labels,values,types){
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{
-          label:c=>{const d=c.raw;return fmtR(Math.abs(d[1]-d[0]));}
+          label:c=>{const d=c.raw;return 'R$ '+fmtMil(Math.abs(d[1]-d[0]))+' mil';}
         }}
       },
       scales:{
         x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0}},
-        y:{ticks:{callback:v=>fmtK(v),font:{size:9}},grid:{color:'#eff2f7'}}
+        y:{ticks:{callback:v=>'R$'+fmtMil(v),font:{size:9}},grid:{color:'#eff2f7'}}
       }
     }
   });
@@ -635,7 +725,7 @@ function renderDonut(dre){
       responsive:true,maintainAspectRatio:false,cutout:'62%',
       plugins:{
         legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:10}},
-        tooltip:{callbacks:{label:c=>c.label+': '+fmtK(c.raw)+' ('+fmtP(tot?c.raw/tot:0)+')'}}
+        tooltip:{callbacks:{label:c=>c.label+': R$ '+fmtMil(c.raw)+' mil ('+fmtP(tot?c.raw/tot:0)+')'}}
       }
     }
   });
@@ -663,7 +753,7 @@ function renderCostChart(monthly){
       plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},padding:12}}},
       scales:{
         x:{grid:{display:false},ticks:{font:{size:11}}},
-        y:{ticks:{callback:v=>fmtK(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true}
+        y:{ticks:{callback:v=>'R$'+fmtMil(v),font:{size:10}},grid:{color:'#eff2f7'},stacked:true}
       }
     }
   });
@@ -684,7 +774,7 @@ function renderDetractors(dets,rl){
       </div>
       <div class="det-bw"><div class="det-bar" style="width:${Math.round(d.v/max*100)}%"></div></div>
       <div class="det-val">
-        <div class="det-amt">${fmtK(d.v)}</div>
+        <div class="det-amt">R$ ${fmtMil(d.v)} mil</div>
         <div class="det-pct">${rl?fmtP(d.v/rl)+' RL':'—'}</div>
       </div>
     </div>`).join('');
