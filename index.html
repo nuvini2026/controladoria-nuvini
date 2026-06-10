@@ -168,14 +168,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .ix-sub{font-size:9px;color:var(--g);margin-top:3px;opacity:.8}
 
 /* ── DFC ── */
-.dfc-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-.dfc-tbl td{padding:5px 10px;border-bottom:1px solid var(--bdr)}
-.dfc-tbl td:last-child{text-align:right;white-space:nowrap;font-weight:600}
-.dfc-sec td{background:#F8F9FC;color:var(--m);font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:800;padding:6px 10px;border:none}
-.dfc-tot td{font-weight:800;color:var(--m);background:#EEF3FF;border-top:2px solid #C7D7FF;border-bottom:2px solid #C7D7FF}
-.dfc-recon td{font-style:italic;color:var(--g);font-size:11px}
-.dfc-pos{color:var(--ok)!important}
-.dfc-neg{color:var(--err)!important}
 
 @media(max-width:1200px){.ix-grid{grid-template-columns:repeat(3,1fr)}.bp-grid{grid-template-columns:1fr}}
 @media(max-width:700px){.ix-grid{grid-template-columns:repeat(2,1fr)}}
@@ -313,13 +305,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
 
   <!-- DFC Método Indireto -->
-  <div class="sec" id="sec-dfc" style="display:none">
-    <div class="sh"><span class="sh-title">DFC — Método Indireto</span><div class="sh-line"></div></div>
-    <div class="card">
-      <div class="ct" id="dfc-lbl"></div>
-      <div class="tw" id="dfc-tbl"></div>
-    </div>
-  </div>
+
 
 </main>
 
@@ -1045,56 +1031,6 @@ function calcIndicesBP(bp,dre){
   return{liqCorr,liqSeca,liqImed,liqGeral,endivGeral,compEndiv,capGiro,roe,roa,margemEbitda,divLiqEbitda,divBruta,divLiq};
 }
 
-// ═══════════════════════════════════════════════
-// CÁLCULO DA DFC (MÉTODO INDIRETO)
-// ═══════════════════════════════════════════════
-function calcDFC(data,year,month,ytd){
-  const d=data.filter(r=>{
-    if(r.ano!==year) return false;
-    if(ytd&&month!==null) return r.mes<=month;
-    if(month!==null) return r.mes===month;
-    return true;
-  });
-
-  // Verifica se há grupos de balanço
-  const grupos=new Set(d.map(r=>r.grupo));
-  const hasBSGroups=grupos.has('Caixa e equivalentes de caixa')||grupos.has('Contas a receber de clientes');
-  if(!hasBSGroups) return null;
-
-  const mov=grps=>d.filter(r=>grps.includes(r.grupo)).reduce((s,r)=>s+r.mov,0);
-  const dre=calcDRE(data,year,month,ytd);
-
-  // FCO — capital de giro
-  const varAR      =-mov(['Contas a receber de clientes']);
-  const varOutAC   =-mov(['Outros créditos AC','Impostos a recuperar','Despesas antecipadas']);
-  const varFornec  =-mov(['Fornecedores']);
-  const varSal     =-mov(['Salários e encargos trabalhistas']);
-  const varImpPag  =-mov(['Impostos, taxas e contribuições a recolher','Imposto de renda e contribuição social a pagar']);
-  const varRecDif  =-mov(['Receita diferida']);
-  const varOutPC   =-mov(['Outras contas a pagar','Provisões']);
-  const varCG=varAR+varOutAC+varFornec+varSal+varImpPag+varRecDif+varOutPC;
-  const fco=dre.lLiq+dre.da+varCG;
-
-  // FCI
-  const varImob    =-mov(['Imobilizado']);
-  const varDirUso  =-mov(['Ativos de direito de uso']);
-  const varImpDif  =-mov(['IMPOSTOS DIFERIDOS ANC']);
-  const fci=varImob+varDirUso+varImpDif;
-
-  // FCF
-  const varArrend  =-mov(['Passivo de Arrendamento PC','Passivo de Arrendamento PNC']);
-  const varCapSoc  =-mov(['Capital Social']);
-  const fcf=varArrend+varCapSoc;
-
-  const varCaixa=fco+fci+fcf;
-  const movCaixa=mov(['Caixa e equivalentes de caixa']);
-  const divergencia=varCaixa-movCaixa;
-
-  return{dre,varAR,varOutAC,varFornec,varSal,varImpPag,varRecDif,varOutPC,varCG,fco,
-    varImob,varDirUso,varImpDif,fci,
-    varArrend,varCapSoc,fcf,
-    varCaixa,movCaixa,divergencia};
-}
 
 // ═══════════════════════════════════════════════
 // RENDER — BALANÇO PATRIMONIAL
@@ -1171,64 +1107,6 @@ function renderIndicesBP(ix){
   document.getElementById('sec-ix').style.display='';
 }
 
-// ═══════════════════════════════════════════════
-// RENDER — DFC MÉTODO INDIRETO
-// ═══════════════════════════════════════════════
-function renderDFC(dfc,label){
-  const el=document.getElementById('sec-dfc');
-  if(!dfc){el.style.display='none';return;}
-
-  document.getElementById('dfc-lbl').textContent=label;
-  const fmt=v=>{
-    if(v===0) return'—';
-    const abs=fmtMil(Math.abs(v));
-    return v<0?`<span class="dfc-neg">(${abs})</span>`:`<span class="dfc-pos">${abs}</span>`;
-  };
-  const fmtTot=v=>{
-    const abs=fmtMil(Math.abs(v));
-    return v<0?`<span class="dfc-neg">(${abs})</span>`:`<span class="dfc-pos">${abs}</span>`;
-  };
-
-  const sec=t=>`<tr class="dfc-sec"><td colspan="2">${t}</td></tr>`;
-  const row=(nm,v)=>Math.abs(v)<1?'':
-    `<tr><td style="padding-left:20px">${nm}</td><td>${fmt(v)}</td></tr>`;
-  const tot=(nm,v)=>
-    `<tr class="dfc-tot"><td>${nm}</td><td>${fmtTot(v)}</td></tr>`;
-  const recon=(nm,v)=>
-    `<tr class="dfc-recon"><td>${nm}</td><td>${fmt(v)}</td></tr>`;
-
-  const html=`<table class="dfc-tbl">
-    ${sec('Atividades Operacionais (FCO)')}
-    ${row('Lucro Líquido',dfc.dre.lLiq)}
-    ${row('(+) Depreciação e Amortização',dfc.dre.da)}
-    ${row('Δ Contas a Receber',dfc.varAR)}
-    ${row('Δ Outros Ativos Circulantes',dfc.varOutAC)}
-    ${row('Δ Fornecedores',dfc.varFornec)}
-    ${row('Δ Salários e Encargos',dfc.varSal)}
-    ${row('Δ Impostos a Pagar',dfc.varImpPag)}
-    ${row('Δ Receita Diferida',dfc.varRecDif)}
-    ${row('Δ Outras Contas a Pagar',dfc.varOutPC)}
-    ${tot('Fluxo de Caixa Operacional (FCO)',dfc.fco)}
-    ${sec('Atividades de Investimento (FCI)')}
-    ${row('Δ Imobilizado',dfc.varImob)}
-    ${row('Δ Direito de Uso',dfc.varDirUso)}
-    ${row('Δ Impostos Diferidos ANC',dfc.varImpDif)}
-    ${tot('Fluxo de Caixa de Investimento (FCI)',dfc.fci)}
-    ${sec('Atividades de Financiamento (FCF)')}
-    ${row('Δ Arrendamentos',dfc.varArrend)}
-    ${row('Δ Capital Social',dfc.varCapSoc)}
-    ${tot('Fluxo de Caixa de Financiamento (FCF)',dfc.fcf)}
-    <tr class="dfc-tot" style="background:var(--m);color:#fff">
-      <td style="font-size:13px">Variação Líquida de Caixa</td>
-      <td style="font-size:13px">${fmtTot(dfc.varCaixa)}</td>
-    </tr>
-    ${recon('Variação real em Caixa (razão)',dfc.movCaixa)}
-    ${recon('Divergência',dfc.divergencia)}
-  </table>`;
-
-  document.getElementById('dfc-tbl').innerHTML=html;
-  el.style.display='';
-}
 
 // ═══════════════════════════════════════════════
 // UPDATE PRINCIPAL
@@ -1268,8 +1146,6 @@ function update(){
   for(const [,fn] of renders){try{fn();}catch(e){console.error(e);}}
 
   // DFC
-  const dfc=calcDFC(data,yr,mo,ytd);
-  renderDFC(dfc,dreLabel);
 
   // BP e Índices
   const balAccts=(S.balancetes[S.co]||{})[yr];
