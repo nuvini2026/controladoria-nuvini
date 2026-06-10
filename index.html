@@ -391,17 +391,24 @@ function parseRow(row){
   let mes=parseInt(g('Mês','Mes','mes')||0)||null;
 
   if(!mes||!ano){
-    const ds=String(g('Data Lançamento','Data Contábil','Data Contabil','datalan','datacontabil','data')||'').trim();
-    if(ds){
-      const p=ds.split('/');
-      if(p.length===3){
-        if(!mes) mes=parseInt(p[1])||null;
-        if(!ano) ano=parseInt(p[2])||null;
-      } else if(!isNaN(ds)&&parseFloat(ds)>1000){
-        // número serial do Excel → converte para data
-        const d=new Date(Math.round((parseFloat(ds)-25569)*86400*1000));
-        if(!mes) mes=d.getUTCMonth()+1;
-        if(!ano) ano=d.getUTCFullYear();
+    const rawDate=g('Data Lançamento','Data Contábil','Data Contabil','datalan','datacontabil','data');
+    if(rawDate instanceof Date&&!isNaN(rawDate)){
+      // SheetJS retorna Date quando a célula está formatada como data no Excel
+      if(!mes) mes=rawDate.getMonth()+1;
+      if(!ano) ano=rawDate.getFullYear();
+    } else {
+      const ds=String(rawDate||'').trim();
+      if(ds){
+        const p=ds.split('/');
+        if(p.length===3){
+          if(!mes) mes=parseInt(p[1])||null;
+          if(!ano) ano=parseInt(p[2])||null;
+        } else if(!isNaN(ds)&&parseFloat(ds)>1000){
+          // número serial do Excel → converte para data
+          const d=new Date(Math.round((parseFloat(ds)-25569)*86400*1000));
+          if(!mes) mes=d.getUTCMonth()+1;
+          if(!ano) ano=d.getUTCFullYear();
+        }
       }
     }
   }
