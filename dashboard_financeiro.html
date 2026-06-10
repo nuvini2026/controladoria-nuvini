@@ -885,7 +885,7 @@ function bsCat(classif){
 }
 
 // ═══════════════════════════════════════════════
-// BALANCETE — PARSE
+// BALANCETE — PARSE (schema-free: detecta colunas pelos códigos de conta)
 // ═══════════════════════════════════════════════
 function parseBal(file){
   return new Promise((res,rej)=>{
@@ -894,83 +894,138 @@ function parseBal(file){
       try{
         const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
 
-        // Tenta todas as abas — usa a que tiver mais linhas com dado
-        const HDR=['classif','saldo','descri','codigo'];
-        let bestRawRows=[],bestHdrIdx=0;
-        for(const shName of wb.SheetNames){
-          const ws2=wb.Sheets[shName];
-          const rr=XLSX.utils.sheet_to_json(ws2,{header:1,defval:null,raw:true});
-          let hi=0;
-          for(let i=0;i<Math.min(rr.length,30);i++){
-            const cells=(rr[i]||[]).filter(c=>c!=null&&String(c).trim());
-            if(cells.length>=2){
-              const joined=cells.map(c=>norm(String(c))).join(' ');
-              if(HDR.some(k=>joined.includes(k))){hi=i;break;}
-            }
-          }
-          if(rr.length-hi>bestRawRows.length-bestHdrIdx){
-            bestRawRows=rr; bestHdrIdx=hi;
-          }
-        }
-        const rawRows=bestRawRows, hdrIdx=bestHdrIdx;
-
-        const hdrs=(rawRows[hdrIdx]||[]);
-        const rows=rawRows.slice(hdrIdx+1).map(dataRow=>{
-          const obj={};
-          hdrs.forEach((h,i2)=>{if(h!=null) obj[String(h)]=dataRow[i2]!==undefined?dataRow[i2]:null;});
-          return obj;
-        }).filter(obj=>Object.values(obj).some(v=>v!=null));
-
-        if(!rows.length) throw new Error(
-          'Planilha de balancete vazia.\n'+
-          'Abas encontradas: '+wb.SheetNames.join(', ')+'\n'+
-          'Colunas detectadas: '+(hdrs.filter(h=>h!=null).join(' | ')||'nenhuma')+'\n'+
-          'Total de linhas raw: '+rawRows.length
-        );
-
-        const g2=(...aliases)=>row=>getField(row,aliases);
-
         const parseSaldo=v=>{
+          if(v==null) return 0;
           if(typeof v==='number') return v;
-          const s=String(v||'').trim().replace(/\s/g,'');
-          // BR format: 1.234,56 → remove dots, replace comma
-          if(/\d+\.\d{3}(,\d{1,2})?/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
-          return parseFloat(s.replace(',','.'))||0;
+          const s=String(v).trim().replace(/\s/g,'');
+          if(!s) return 0;
+          const neg=s[0]==='('||s[0]==='-';
+          const clean=s.replace(/[()]/g,'').replace(/^-/,'');
+          let val;
+          if(/\d+\.\d{3}/.test(clean)){
+            val=parseFloat(clean.replace(/\./g,'').replace(',','.'))||0;
+          } else {
+            val=parseFloat(clean.replace(',','.'))||0;
+          }
+          return neg?-val:val;
         };
 
+        // ── 1. Escolhe a aba com mais linhas que contenham código de conta ──
+        const dottedRe=/^\d+[.\-]\d+/; // ex: 1.01, 1.01.001
+        let bestRR=[], bestScore=0;
+        for(const shName of wb.SheetNames){
+          const ws=wb.Sheets[shName];
+          const rr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+          let score=0;
+          for(const row of rr){
+            for(const cell of (row||[])){
+              if(dottedRe.test(String(cell??'').trim())&&bsCat(String(cell).trim())){score++;break;}
+            }
+          }
+          if(score>bestScore){bestScore=score;bestRR=rr;}
+        }
+
+        if(bestScore===0) throw new Error(
+          'Nenhum código de conta (ex: 1.01.001) encontrado.\n'+
+          'Abas: '+wb.SheetNames.join(', ')+'\n'+
+          'Verifique se a coluna Classificação tem códigos como 1.01, 1.02, 2.01...'
+        );
+
+        // ── 2. Detecta a coluna de classificação (modal) ──
+        const colVotes={};
+        for(const row of bestRR){
+          for(let j=0;j<(row||[]).length;j++){
+            const v=String(row[j]??'').trim();
+            if(dottedRe.test(v)&&bsCat(v)) colVotes[j]=(colVotes[j]||0)+1;
+          }
+        }
+        const classifCol=parseInt(Object.entries(colVotes).sort((a,b)=>b[1]-a[1])[0][0]);
+
+        // ── 3. Linhas de dados (onde classifCol tem código de conta) ──
+        const dataRows=[];
+        for(const row of bestRR){
+          const v=String((row||[])[classifCol]??'').trim();
+          if(dottedRe.test(v)&&bsCat(v)) dataRows.push(row);
+        }
+
+        // ── 4. Detecta colunas de saldo via linha de cabeçalho (busca em todas as linhas antes dos dados) ──
+        const firstDataRowIdx=bestRR.findIndex(row=>dottedRe.test(String((row||[])[classifCol]??'').trim())&&bsCat(String((row||[])[classifCol]??'').trim()));
+        let saldoAtualCol=-1, saldoAntCol=-1, descCol=-1;
+
+        for(let i=Math.max(0,firstDataRowIdx-10);i<firstDataRowIdx;i++){
+          const hrow=bestRR[i]||[];
+          const hasHdr=hrow.some(c=>{const n=norm(String(c??''));return n.includes('saldo')||n.includes('classif')||n.includes('descri');});
+          if(!hasHdr) continue;
+          for(let j=0;j<hrow.length;j++){
+            if(j<=classifCol) continue;
+            const n=norm(String(hrow[j]??''));
+            if(descCol===-1&&(n.includes('descri')||n.includes('nome')||n.includes('historico'))) descCol=j;
+            if(saldoAntCol===-1&&(n.includes('saldoant')||n.includes('saldoini')||n.includes('saldodev')||n.includes('saldocred'))) saldoAntCol=j;
+            if(n.includes('saldoatu')||n.includes('saldofin')||n.includes('saldoate')||
+               (n.includes('saldo')&&!n.includes('ant')&&!n.includes('ini')&&n!='saldo'&&saldoAtualCol===-1&&j>classifCol&&j!=saldoAntCol)){
+              saldoAtualCol=j;
+            }
+          }
+          if(saldoAtualCol>=0||saldoAntCol>=0) break;
+        }
+
+        // ── 5. Fallback posicional: conta votos de colunas numéricas nas linhas de dados ──
+        if(saldoAtualCol===-1||saldoAntCol===-1){
+          const numVotes={};
+          for(const row of dataRows.slice(0,30)){
+            for(let j=classifCol+1;j<row.length;j++){
+              const v=row[j];
+              if(v==null) continue;
+              const isNum=typeof v==='number'||(typeof v==='string'&&/^-?[\d.,()]+$/.test(String(v).trim())&&String(v).trim().replace(/[.,()-]/g,''));
+              if(isNum) numVotes[j]=(numVotes[j]||0)+1;
+            }
+          }
+          const numCols=Object.entries(numVotes)
+            .filter(([,c])=>c>=Math.max(1,dataRows.length*0.1))
+            .map(([j])=>parseInt(j)).sort((a,b)=>a-b);
+          if(numCols.length>0&&saldoAntCol===-1) saldoAntCol=numCols[0];
+          if(numCols.length>0&&saldoAtualCol===-1) saldoAtualCol=numCols[numCols.length-1];
+        }
+
+        // ── 6. Extrai contas ──
         const accounts=[];
-        let year=null;
-        for(const row of rows){
-          // Tenta Classificação primeiro, depois Código
-          const classif=String(
-            getField(row,['Classificação','Classificacao','classif','Classif'])||
-            getField(row,['Código','Codigo','codigo','Conta','conta'])||''
-          ).trim();
+        for(const row of dataRows){
+          const classif=String(row[classifCol]??'').trim();
           const cat=bsCat(classif);
           if(!cat) continue;
 
-          const desc=String(
-            getField(row,['Descrição da conta','Descricao da conta','Descricao','Descrição','descricao','descricao da conta','Nome','nome'])||
-            classif
-          ).trim();
+          // Descrição: primeira célula de texto entre classifCol e primeira coluna numérica
+          let desc=classif;
+          const minNum=Math.min(saldoAntCol>=0?saldoAntCol:999,saldoAtualCol>=0?saldoAtualCol:999);
+          for(let j=classifCol+1;j<Math.min(minNum,row.length);j++){
+            const v=row[j];
+            if(v==null) continue;
+            const sv=String(v).trim();
+            if(sv&&typeof v==='string'&&isNaN(sv.replace(',','.'))) {desc=sv;break;}
+          }
+          if(descCol>=0&&row[descCol]!=null&&String(row[descCol]).trim()) desc=String(row[descCol]).trim();
 
-          const saldo=parseSaldo(getField(row,['Saldo Atual','saldo atual','SaldoAtual','saldoatual','Saldo Final','saldo final']));
-          const saldoAnt=parseSaldo(getField(row,['Saldo Anterior','saldo anterior','SaldoAnterior','saldoanterior','Saldo Inicial','saldo inicial']));
-
-          if(!saldo&&!saldoAnt) continue; // pula linhas sem valor
+          const saldo=saldoAtualCol>=0?parseSaldo(row[saldoAtualCol]):0;
+          const saldoAnt=saldoAntCol>=0?parseSaldo(row[saldoAntCol]):0;
+          if(!saldo&&!saldoAnt) continue;
           accounts.push({classif,cat,desc,saldo,saldoAnt});
         }
 
-        if(!accounts.length) throw new Error('Nenhuma conta de balanço reconhecida no balancete. Verifique se a coluna "Classificação" contém códigos como "1.01.xxx".');
+        if(!accounts.length) throw new Error(
+          'Contas encontradas mas sem saldo.\n'+
+          'Col classif='+classifCol+' saldoAnt='+saldoAntCol+' saldoAtual='+saldoAtualCol+'\n'+
+          'Ex primeira linha: '+(dataRows[0]||[]).slice(0,8).join(' | ')
+        );
 
-        // Tenta detectar o ano do nome do arquivo
+        // ── 7. Ano e nome ──
         const ym=file.name.match(/\b(20\d{2})\b/);
-        year=ym?parseInt(ym[1]):new Date().getFullYear();
+        const year=ym?parseInt(ym[1]):new Date().getFullYear();
 
         let name=file.name
           .replace(/\.xlsx?$/i,'')
           .replace(/[_-]+/g,' ')
-          .replace(/\s*(balancete|balanço|balanco|2024|2025|2026|2023)\s*/gi,' ')
+          .replace(/\s*(balancete|balanco|balanço)\s*/gi,' ')
+          .replace(/\b(20\d{2})\b|\b\d{6}\b/g,' ')
           .replace(/\s+/g,' ').trim()||'Empresa';
 
         res({name,year,accounts});
