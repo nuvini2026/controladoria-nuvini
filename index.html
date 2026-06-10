@@ -195,7 +195,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
   <div class="sp"></div>
   <span id="plbl"></span>
-  <label id="bal-btn" title="Carregar balancete">📋 Balancete
+  <label id="bal-btn" title="Carregar balancete">📋 Balancete <span id="bal-ok" style="display:none;background:var(--ok);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:800">✓</span>
     <input type="file" id="bal-in" accept=".xlsx,.xls" multiple style="display:none">
   </label>
   <label id="up-btn" title="Adicionar arquivo(s)">+
@@ -918,30 +918,38 @@ function parseBal(file){
 
         const g2=(...aliases)=>row=>getField(row,aliases);
 
+        const parseSaldo=v=>{
+          if(typeof v==='number') return v;
+          const s=String(v||'').trim().replace(/\s/g,'');
+          // BR format: 1.234,56 → remove dots, replace comma
+          if(/\d+\.\d{3}(,\d)?/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
+          return parseFloat(s.replace(',','.'))||0;
+        };
+
         const accounts=[];
         let year=null;
         for(const row of rows){
-          const classif=String(getField(row,['Classificação','Classificacao','classif','Classif'])||'').trim();
+          // Tenta Classificação primeiro, depois Código
+          const classif=String(
+            getField(row,['Classificação','Classificacao','classif','Classif'])||
+            getField(row,['Código','Codigo','codigo','Conta','conta'])||''
+          ).trim();
           const cat=bsCat(classif);
           if(!cat) continue;
 
-          const desc=String(getField(row,['Descrição da conta','Descricao da conta','Descricao','Descrição','descricao','descricao da conta'])||'').trim();
-          if(!desc) continue;
+          const desc=String(
+            getField(row,['Descrição da conta','Descricao da conta','Descricao','Descrição','descricao','descricao da conta','Nome','nome'])||
+            classif
+          ).trim();
 
-          // Saldo Atual
-          let saldo=getField(row,['Saldo Atual','saldo atual','SaldoAtual','saldoatual']);
-          if(typeof saldo==='string') saldo=parseFloat(saldo.replace(/\./g,'').replace(',','.'))||0;
-          saldo=parseFloat(saldo)||0;
+          const saldo=parseSaldo(getField(row,['Saldo Atual','saldo atual','SaldoAtual','saldoatual','Saldo Final','saldo final']));
+          const saldoAnt=parseSaldo(getField(row,['Saldo Anterior','saldo anterior','SaldoAnterior','saldoanterior','Saldo Inicial','saldo inicial']));
 
-          // Saldo Anterior
-          let saldoAnt=getField(row,['Saldo Anterior','saldo anterior','SaldoAnterior','saldoanterior']);
-          if(typeof saldoAnt==='string') saldoAnt=parseFloat(saldoAnt.replace(/\./g,'').replace(',','.'))||0;
-          saldoAnt=parseFloat(saldoAnt)||0;
-
+          if(!saldo&&!saldoAnt) continue; // pula linhas sem valor
           accounts.push({classif,cat,desc,saldo,saldoAnt});
         }
 
-        if(!accounts.length) throw new Error('Nenhuma conta de balanço reconhecida no balancete');
+        if(!accounts.length) throw new Error('Nenhuma conta de balanço reconhecida no balancete. Verifique se a coluna "Classificação" contém códigos como "1.01.xxx".');
 
         // Tenta detectar o ano do nome do arquivo
         const ym=file.name.match(/\b(20\d{2})\b/);
@@ -1148,7 +1156,10 @@ function update(){
   // DFC
 
   // BP e Índices
-  const balAccts=(S.balancetes[S.co]||{})[yr];
+  const nc=norm(S.co);
+  const balKey=Object.keys(S.balancetes).find(k=>{const nk=norm(k);return nk===nc||nc.includes(nk)||nk.includes(nc);})||Object.keys(S.balancetes)[0];
+  const balByYear=S.balancetes[balKey]||{};
+  const balAccts=balByYear[yr]||balByYear[Object.keys(balByYear).sort().pop()];
   if(balAccts){
     const bp=calcBP(balAccts);
     const ix=calcIndicesBP(bp,dre);
@@ -1241,14 +1252,18 @@ document.getElementById('bal-in').addEventListener('change',function(e){
 
 async function processBalFiles(files){
   document.getElementById('loading').classList.add('on');
+  var ok=0;
   for(var i=0;i<files.length;i++){
     try{
       var r=await parseBal(files[i]);
       if(!S.balancetes[r.name]) S.balancetes[r.name]={};
       S.balancetes[r.name][r.year]=r.accounts;
+      ok++;
     }catch(err){alert('Erro ao ler balancete "'+files[i].name+'":\n'+err.message);}
   }
   document.getElementById('loading').classList.remove('on');
+  var badge=document.getElementById('bal-ok');
+  if(badge) badge.style.display=ok?'inline':'none';
   if(S.co) update();
 }
 
