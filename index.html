@@ -893,19 +893,26 @@ function parseBal(file){
     r.onload=e=>{
       try{
         const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',raw:false});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const rawRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
 
-        // Localiza linha de cabeçalho
+        // Tenta todas as abas — usa a que tiver mais linhas com dado
         const HDR=['classif','saldo','descri','codigo'];
-        let hdrIdx=0;
-        for(let i=0;i<Math.min(rawRows.length,25);i++){
-          const cells=(rawRows[i]||[]).filter(c=>c!=null&&String(c).trim());
-          if(cells.length>=3){
-            const joined=cells.map(c=>norm(String(c))).join(' ');
-            if(HDR.some(k=>joined.includes(k))){hdrIdx=i;break;}
+        let bestRawRows=[],bestHdrIdx=0;
+        for(const shName of wb.SheetNames){
+          const ws2=wb.Sheets[shName];
+          const rr=XLSX.utils.sheet_to_json(ws2,{header:1,defval:null,raw:true});
+          let hi=0;
+          for(let i=0;i<Math.min(rr.length,30);i++){
+            const cells=(rr[i]||[]).filter(c=>c!=null&&String(c).trim());
+            if(cells.length>=2){
+              const joined=cells.map(c=>norm(String(c))).join(' ');
+              if(HDR.some(k=>joined.includes(k))){hi=i;break;}
+            }
+          }
+          if(rr.length-hi>bestRawRows.length-bestHdrIdx){
+            bestRawRows=rr; bestHdrIdx=hi;
           }
         }
+        const rawRows=bestRawRows, hdrIdx=bestHdrIdx;
 
         const hdrs=(rawRows[hdrIdx]||[]);
         const rows=rawRows.slice(hdrIdx+1).map(dataRow=>{
@@ -914,7 +921,12 @@ function parseBal(file){
           return obj;
         }).filter(obj=>Object.values(obj).some(v=>v!=null));
 
-        if(!rows.length) throw new Error('Planilha de balancete vazia');
+        if(!rows.length) throw new Error(
+          'Planilha de balancete vazia.\n'+
+          'Abas encontradas: '+wb.SheetNames.join(', ')+'\n'+
+          'Colunas detectadas: '+(hdrs.filter(h=>h!=null).join(' | ')||'nenhuma')+'\n'+
+          'Total de linhas raw: '+rawRows.length
+        );
 
         const g2=(...aliases)=>row=>getField(row,aliases);
 
