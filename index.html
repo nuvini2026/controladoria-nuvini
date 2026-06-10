@@ -851,6 +851,7 @@ function update(){
     ['Indicators', ()=>renderIndicators(dre)],
   ];
   for(const [,fn] of renders){try{fn();}catch(e){console.error(e);}}
+}
 
 // ═══════════════════════════════════════════════
 // UI BUILDERS
