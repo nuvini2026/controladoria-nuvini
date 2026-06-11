@@ -1082,73 +1082,116 @@ function parseBal(file){
           return true;
         });
 
-        // ── 4. Detecta colunas de saldo via linha de cabeçalho (busca em todas as linhas antes dos dados) ──
+        // ── 4. Detecta colunas de saldo — suporta dois formatos Protheus ──────────
+        // Formato A (coluna única): Classificação | Descrição | Saldo Ant | Movto | Saldo Atual
+        // Formato B (dev/cred):     Classificação | Descrição | SD Ant | SC Ant | SD Atu | SC Atu
+        // No formato B, saldo líquido = SD_atual − SC_atual
+        //   Ativo (natureza devedora): SD_atu > 0, SC_atu = 0  →  net > 0
+        //   Passivo/PL (natureza credora): SD_atu = 0, SC_atu > 0  →  net < 0
         const firstDataRowIdx=bestRR.findIndex(row=>dottedRe.test(String((row||[])[classifCol]??'').trim())&&bsCat(String((row||[])[classifCol]??'').trim()));
         let saldoAtualCol=-1, saldoAntCol=-1, descCol=-1;
+        let sdAtuCol=-1, scAtuCol=-1; // colunas SD/SC do período atual (Formato B)
 
         for(let i=Math.max(0,firstDataRowIdx-10);i<firstDataRowIdx;i++){
           const hrow=bestRR[i]||[];
-          const hasHdr=hrow.some(c=>{const n=norm(String(c??''));return n.includes('saldo')||n.includes('classif')||n.includes('descri');});
+          const hasHdr=hrow.some(c=>{const n=norm(String(c??''));
+            return n.includes('saldo')||n.includes('classif')||n.includes('descri')||n.includes('conta');});
           if(!hasHdr) continue;
           for(let j=0;j<hrow.length;j++){
             if(j<=classifCol) continue;
             const n=norm(String(hrow[j]??''));
+            if(!n) continue;
+            // Descrição
             if(descCol===-1&&(n.includes('descri')||n.includes('nome')||n.includes('historico'))) descCol=j;
-            if(saldoAntCol===-1&&(n.includes('saldoant')||n.includes('saldoini')||n.includes('saldodev')||n.includes('saldocred'))) saldoAntCol=j;
-            if(n.includes('saldoatu')||n.includes('saldofin')||n.includes('saldoate')||
-               (n.includes('saldo')&&!n.includes('ant')&&!n.includes('ini')&&n!='saldo'&&saldoAtualCol===-1&&j>classifCol&&j!=saldoAntCol)){
-              saldoAtualCol=j;
-            }
+            // ── FORMATO B: pares SD/SC (devedor / credor) ──
+            // SD anterior
+            if(saldoAntCol===-1&&(
+               (n.includes('saldodev')&&(n.includes('ant')||n.includes('ini')||n.includes('ant')))||
+               n==='sdanterior'||n==='sdant'||n==='sdini'||n==='sdinicial')) saldoAntCol=j;
+            // SC anterior — ignora (não usamos crédito anterior diretamente)
+            // SD atual/final
+            if(sdAtuCol===-1&&(
+               (n.includes('saldodev')&&!n.includes('ant')&&!n.includes('ini'))||
+               n==='sdatual'||n==='sdatu'||n==='sdfinal'||n==='sdfin'||
+               (n.includes('dev')&&(n.includes('atu')||n.includes('fin'))&&n.includes('saldo')))) sdAtuCol=j;
+            // SC atual/final
+            if(scAtuCol===-1&&(
+               (n.includes('saldocred')&&!n.includes('ant')&&!n.includes('ini'))||
+               n==='scatual'||n==='scatu'||n==='scfinal'||n==='scfin'||
+               (n.includes('cred')&&(n.includes('atu')||n.includes('fin'))&&n.includes('saldo')))) scAtuCol=j;
+            // ── FORMATO A: coluna de saldo único ──
+            // Saldo anterior (coluna única)
+            if(saldoAntCol===-1&&(n==='saldoanterior'||n==='saldoini'||n==='saldoinicial'||
+               (n.includes('saldo')&&(n.includes('ant')||n.includes('ini'))&&!n.includes('dev')&&!n.includes('cred')))) saldoAntCol=j;
+            // Saldo atual/final (coluna única) — apenas padrões não ambíguos
+            if(saldoAtualCol===-1&&(n==='saldoatual'||n==='saldofinal'||n==='saldoatu'||n==='saldofin'||
+               n.includes('saldoate')||
+               (n==='saldo'&&hrow.filter(c=>norm(String(c??'')).includes('saldo')).length===1))) saldoAtualCol=j;
           }
-          if(saldoAtualCol>=0||saldoAntCol>=0) break;
+          if(saldoAtualCol>=0||sdAtuCol>=0||saldoAntCol>=0) break;
         }
 
-        // ── 5. Fallback posicional: conta votos de colunas numéricas nas linhas de dados ──
-        if(saldoAtualCol===-1||saldoAntCol===-1){
-          const numVotes={};
-          for(const row of leafRows.slice(0,30)){
-            for(let j=classifCol+1;j<row.length;j++){
-              const v=row[j];
-              if(v==null) continue;
-              const isNum=typeof v==='number'||(typeof v==='string'&&/^-?[\d.,()]+$/.test(String(v).trim())&&String(v).trim().replace(/[.,()-]/g,''));
-              if(isNum) numVotes[j]=(numVotes[j]||0)+1;
-            }
+        // ── 5. Fallback posicional: vota colunas numéricas ──────────────────────
+        const numVotes={};
+        for(const row of leafRows.slice(0,50)){
+          for(let j=classifCol+1;j<(row||[]).length;j++){
+            const v=(row||[])[j];
+            if(v==null) continue;
+            const isNum=typeof v==='number'||
+              (typeof v==='string'&&/^-?[\d.,()]+$/.test(String(v).trim())&&String(v).trim().replace(/[.,()-]/g,'').length>0);
+            if(isNum) numVotes[j]=(numVotes[j]||0)+1;
           }
-          const numCols=Object.entries(numVotes)
-            .filter(([,c])=>c>=Math.max(1,leafRows.length*0.1))
-            .map(([j])=>parseInt(j)).sort((a,b)=>a-b);
-          if(numCols.length>0&&saldoAntCol===-1) saldoAntCol=numCols[0];
-          if(numCols.length>0&&saldoAtualCol===-1) saldoAtualCol=numCols[numCols.length-1];
         }
+        const numCols=Object.entries(numVotes)
+          .filter(([,c])=>c>=Math.max(3,leafRows.length*0.3))
+          .map(([j])=>parseInt(j)).sort((a,b)=>a-b);
 
-        // ── 6. Extrai contas (apenas folhas) ──
+        // Preenche apenas o que ficou vazio
+        if(saldoAntCol===-1&&numCols.length>0) saldoAntCol=numCols[0];
+        // Formato B: se SD+SC foram detectados, não usa saldoAtualCol simples
+        const useDevCred=sdAtuCol>=0&&scAtuCol>=0;
+        if(!useDevCred&&saldoAtualCol===-1&&numCols.length>0) saldoAtualCol=numCols[numCols.length-1];
+
+        // ── 6. Extrai contas (apenas folhas) ──────────────────────────────────
         const accounts=[];
         for(const row of leafRows){
-          const classif=String(row[classifCol]??'').trim();
+          const classif=String((row||[])[classifCol]??'').trim();
           const cat=bsCat(classif);
           if(!cat) continue;
 
-          // Descrição: primeira célula de texto entre classifCol e primeira coluna numérica
+          // Descrição: primeira célula textual após o código
           let desc=classif;
-          const minNum=Math.min(saldoAntCol>=0?saldoAntCol:999,saldoAtualCol>=0?saldoAtualCol:999);
-          for(let j=classifCol+1;j<Math.min(minNum,row.length);j++){
-            const v=row[j];
+          const firstNumCol=useDevCred
+            ?Math.min(sdAtuCol,scAtuCol)
+            :Math.min(saldoAntCol>=0?saldoAntCol:999,saldoAtualCol>=0?saldoAtualCol:999);
+          for(let j=classifCol+1;j<Math.min(firstNumCol,(row||[]).length);j++){
+            const v=(row||[])[j];
             if(v==null) continue;
             const sv=String(v).trim();
             if(sv&&typeof v==='string'&&isNaN(sv.replace(',','.'))) {desc=sv;break;}
           }
-          if(descCol>=0&&row[descCol]!=null&&String(row[descCol]).trim()) desc=String(row[descCol]).trim();
+          if(descCol>=0&&(row||[])[descCol]!=null&&String((row||[])[descCol]).trim())
+            desc=String((row||[])[descCol]).trim();
 
-          const saldo=saldoAtualCol>=0?parseSaldo(row[saldoAtualCol]):0;
-          const saldoAnt=saldoAntCol>=0?parseSaldo(row[saldoAntCol]):0;
+          let saldo;
+          if(useDevCred){
+            // Formato B: saldo líquido = Devedor − Credor
+            // Ativo  → SD > 0, SC = 0 → saldo > 0
+            // Passivo/PL → SD = 0, SC > 0 → saldo < 0  (convenção débito)
+            saldo=parseSaldo((row||[])[sdAtuCol])-parseSaldo((row||[])[scAtuCol]);
+          } else {
+            saldo=saldoAtualCol>=0?parseSaldo((row||[])[saldoAtualCol]):0;
+          }
+          const saldoAnt=saldoAntCol>=0?parseSaldo((row||[])[saldoAntCol]):0;
           if(!saldo&&!saldoAnt) continue;
           accounts.push({classif,cat,desc,saldo,saldoAnt});
         }
 
         if(!accounts.length) throw new Error(
           'Contas encontradas mas sem saldo.\n'+
-          'Col classif='+classifCol+' saldoAnt='+saldoAntCol+' saldoAtual='+saldoAtualCol+'\n'+
-          'Ex primeira linha: '+(dataRows[0]||[]).slice(0,8).join(' | ')
+          'Formato: '+(useDevCred?'SD/SC (dev-cred)':'coluna única')+'\n'+
+          'Col classif='+classifCol+(useDevCred?' sdAtu='+sdAtuCol+' scAtu='+scAtuCol:' saldoAtu='+saldoAtualCol)+' saldoAnt='+saldoAntCol+'\n'+
+          'Ex 1ª linha: '+(dataRows[0]||[]).slice(0,10).join(' | ')
         );
 
         // ── 7. Ano e nome ──
