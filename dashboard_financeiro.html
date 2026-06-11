@@ -158,12 +158,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 /* ── ÍNDICES FINANCEIROS ── */
 .ix-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.ix-card{background:var(--card);border-radius:12px;padding:18px 14px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center;border-bottom:3px solid var(--bdr)}
-.ix-card.ok{border-bottom-color:var(--ok)}
-.ix-card.warn{border-bottom-color:var(--warn)}
-.ix-card.err{border-bottom-color:var(--err)}
-.ix-card.neu{border-bottom-color:var(--r)}
-.ix-v{font-size:26px;font-weight:800;color:var(--m);line-height:1.1}
+.ix-card{background:var(--card);border-radius:10px;padding:16px 14px 12px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center;border-top:4px solid #e2e8f0;transition:.15s;position:relative}
+.ix-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12);transform:translateY(-1px)}
+.ix-card.ok  {border-top-color:#22c55e;background:linear-gradient(160deg,#f0fdf4 0%,#fff 60%)}
+.ix-card.warn{border-top-color:#f59e0b;background:linear-gradient(160deg,#fffbeb 0%,#fff 60%)}
+.ix-card.err {border-top-color:#ef4444;background:linear-gradient(160deg,#fef2f2 0%,#fff 60%)}
+.ix-card.neu {border-top-color:#94a3b8}
+.ix-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:9px;margin-bottom:8px}
+.ix-badge.ok  {background:#dcfce7;color:#16a34a}
+.ix-badge.warn{background:#fef3c7;color:#b45309}
+.ix-badge.err {background:#fee2e2;color:#dc2626}
+.ix-badge.neu {background:#f1f5f9;color:#64748b}
+.ix-v{font-size:24px;font-weight:800;line-height:1.1}
+.ix-card.ok   .ix-v{color:#16a34a}
+.ix-card.warn .ix-v{color:#b45309}
+.ix-card.err  .ix-v{color:#dc2626}
+.ix-card.neu  .ix-v{color:var(--m)}
 .ix-l{font-size:10px;color:var(--g);margin-top:5px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
 .ix-sub{font-size:9px;color:var(--g);margin-top:3px;opacity:.8}
 
@@ -1176,20 +1186,62 @@ function calcBP(accounts){
   // ARLP: ANC sem imobilizado/intangível
   const ARLP=fixed['ANC'].filter(a=>!/imobil|intang|deprec|direito/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
 
-  // Grupos top 8 por |saldo| para cada categoria
-  const topGrp=arr=>arr
+  // Ordenação IFRS por liquidez dentro de cada grupo
+  const liqRank=(desc,cat)=>{
+    const d=norm(desc);
+    if(cat==='AC'){
+      if(/caixa|banco|disponib|dinheiro/.test(d))          return 0; // disponibilidades
+      if(/aplicac|financ|titulo|cdb|lci|lca|poupan/.test(d)) return 1; // aplicações
+      if(/receber|client|duplicata|credito/.test(d))        return 2; // recebíveis
+      if(/estoque|mercador|produto|materia/.test(d))         return 3; // estoques
+      if(/antecip|prepag|despesa/.test(d))                  return 4; // despesas antecipadas
+      return 5;
+    }
+    if(cat==='ANC'){
+      if(/realizavel|longo|receber/.test(d))                return 0; // realizável LP
+      if(/investiment|particip|coligad|controlad/.test(d))  return 1; // investimentos
+      if(/imobil|maquina|equipament|veiculo|terreno|instala|movel/.test(d)) return 2; // imobilizado
+      if(/intangiv|softwar|marca|patent|goodwill/.test(d))  return 3; // intangível
+      if(/deprec|amortiz/.test(d))                          return 4; // redutoras
+      return 2;
+    }
+    if(cat==='PC'){
+      if(/empresti|financiam|debentur|cce|cedula/.test(d))  return 0; // dívida financeira
+      if(/fornecedor/.test(d))                               return 1; // fornecedores
+      if(/fiscal|imposto|tributo|inss|fgts|pis|cofins|irpj|csll/.test(d)) return 2; // obrigações fiscais
+      if(/salario|trabalhist|folha|pessoal|ferias|decimo/.test(d)) return 3; // obrigações trabalhistas
+      return 4;
+    }
+    if(cat==='PNC'){
+      if(/empresti|financiam|debentur/.test(d))             return 0;
+      if(/parcelament|fiscal|tributo/.test(d))               return 1;
+      return 2;
+    }
+    if(cat==='PL'){
+      if(/capital/.test(d))                                  return 0;
+      if(/reserva/.test(d))                                  return 1;
+      if(/resultado|lucro|prejuizo|retido|acumulad/.test(d)) return 2;
+      return 3;
+    }
+    return 5;
+  };
+
+  const topGrp=(arr,cat)=>arr
     .filter(a=>Math.abs(a.saldo)>1)
-    .sort((a,b)=>Math.abs(b.saldo)-Math.abs(a.saldo))
+    .sort((a,b)=>{
+      const ra=liqRank(a.desc,cat),rb=liqRank(b.desc,cat);
+      return ra!==rb?ra-rb:Math.abs(b.saldo)-Math.abs(a.saldo);
+    })
     .slice(0,8)
     .map(a=>[a.desc,a.saldo]);
 
   return{
     AC,ANC,AT,PC,PNC,PL,PT,caixa,estoques,ARLP,
-    grpAC:topGrp(fixed['AC']),
-    grpANC:topGrp(fixed['ANC']),
-    grpPC:topGrp(fixed['PC']),
-    grpPNC:topGrp(fixed['PNC']),
-    grpPL:topGrp(fixed['PL'])
+    grpAC: topGrp(fixed['AC'], 'AC'),
+    grpANC:topGrp(fixed['ANC'],'ANC'),
+    grpPC: topGrp(fixed['PC'], 'PC'),
+    grpPNC:topGrp(fixed['PNC'],'PNC'),
+    grpPL: topGrp(fixed['PL'], 'PL')
   };
 }
 
@@ -1219,8 +1271,8 @@ function calcIndicesBP(bp,dre){
 // RENDER — BALANÇO PATRIMONIAL
 // ═══════════════════════════════════════════════
 function renderBP(bp){
-  const fv=v=>fmtMil(v);
-  const rows=grp=>grp.map(([nm,vl])=>`<div class="bp-row"><span class="bp-nm">${nm}</span><span class="bp-vl">${fv(vl)}</span></div>`).join('');
+  const fv=v=>fmtMil(Math.abs(v));
+  const rows=grp=>grp.map(([nm,vl])=>`<div class="bp-row"><span class="bp-nm">${nm}</span><span class="bp-vl"${vl<0?' style="color:#ef4444"':''}>${vl<0?'('+fv(vl)+')':fv(vl)}</span></div>`).join('');
 
   const ativoHtml=`
     <div class="bp-side">
@@ -1256,32 +1308,65 @@ function renderBP(bp){
 // RENDER — ÍNDICES FINANCEIROS
 // ═══════════════════════════════════════════════
 function renderIndicesBP(ix){
-  const fmtX=v=>v!=null?v.toFixed(2)+'x':'—';
-  const fmtPct=v=>v!=null?fmtP(v):'—';
-  const fmtM=v=>v!=null?'R$ '+fmtMil(v)+' mil':'—';
+  const fX=v=>v!=null&&isFinite(v)?v.toFixed(2)+'x':'—';
+  const fP=v=>v!=null&&isFinite(v)?fmtP(v):'—';
+  const fM=v=>v!=null&&isFinite(v)?'R$&nbsp;'+fmtMil(v)+' mil':'—';
 
-  const liqCls=v=>{if(v===null)return'neu';return v>=1.5?'ok':v>=1?'warn':'err';};
-  const endCls=v=>{if(v===null)return'neu';return v<=.4?'ok':v<=.65?'warn':'err';};
-  const roeCls=v=>{if(v===null)return'neu';return v>=.15?'ok':v>=.05?'warn':'err';};
-  const dleCls=v=>{if(v===null)return'neu';return v<=2?'ok':v<=4?'warn':'err';};
+  // Classifica: ok=verde  warn=amarelo  err=vermelho  neu=cinza
+  const cl=(v,okFn,warnFn)=>{
+    if(v==null||!isFinite(v))return'neu';
+    return okFn(v)?'ok':warnFn(v)?'warn':'err';
+  };
 
   const cards=[
-    {v:fmtX(ix.liqCorr),  l:'Liquidez Corrente',      sub:'AC / PC',                    cls:liqCls(ix.liqCorr)},
-    {v:fmtX(ix.liqSeca),  l:'Liquidez Seca',           sub:'(AC − Est.) / PC',           cls:liqCls(ix.liqSeca)},
-    {v:fmtX(ix.liqImed),  l:'Liquidez Imediata',       sub:'Caixa / PC',                 cls:liqCls(ix.liqImed)},
-    {v:fmtX(ix.liqGeral), l:'Liquidez Geral',          sub:'(AC+ARLP) / (PC+PNC)',       cls:liqCls(ix.liqGeral)},
-    {v:fmtPct(ix.endivGeral), l:'Endividamento Geral', sub:'Dív. Bruta / AT',            cls:endCls(ix.endivGeral)},
-    {v:fmtPct(ix.compEndiv),  l:'Comp. Endividamento', sub:'PC / Dív. Bruta',            cls:endCls(ix.compEndiv)},
-    {v:fmtM(ix.capGiro),      l:'Capital de Giro Líq.',sub:'AC − PC',                   cls:'neu'},
-    {v:fmtPct(ix.roe),        l:'ROE',                 sub:'Lucro Líq. / PL',            cls:roeCls(ix.roe)},
-    {v:fmtPct(ix.roa),        l:'ROA',                 sub:'Lucro Líq. / AT',            cls:roeCls(ix.roa)},
-    {v:fmtPct(ix.margemEbitda),l:'Margem EBITDA',      sub:'EBITDA / Rec. Líquida',      cls:ix.margemEbitda!=null?(ix.margemEbitda>=.15?'ok':ix.margemEbitda>=.05?'warn':'err'):'neu'},
-    {v:ix.divLiqEbitda!=null?ix.divLiqEbitda.toFixed(2)+'x':'—',l:'Dívida Líq./EBITDA',sub:'(PC+PNC−Cx) / EBITDA',cls:dleCls(ix.divLiqEbitda)},
-    {v:fmtM(ix.divBruta), l:'Dívida Bruta',            sub:'PC + PNC',                   cls:'neu'},
+    // ── Liquidez ──────────────────────────────────────────────────────────
+    {v:fX(ix.liqCorr),   l:'Liquidez Corrente',     sub:'AC / PC',
+     cls:cl(ix.liqCorr,  v=>v>=1.5, v=>v>=1.0),
+     tip:'≥1,5 Bom · 1,0–1,5 Atenção · <1,0 Crítico'},
+    {v:fX(ix.liqSeca),   l:'Liquidez Seca',          sub:'(AC − Estoques) / PC',
+     cls:cl(ix.liqSeca,  v=>v>=1.0, v=>v>=0.5),
+     tip:'≥1,0 Bom · 0,5–1,0 Atenção · <0,5 Crítico'},
+    {v:fX(ix.liqImed),   l:'Liquidez Imediata',      sub:'Caixa / PC',
+     cls:cl(ix.liqImed,  v=>v>=0.20,v=>v>=0.05),
+     tip:'≥20% Bom · 5–20% Atenção · <5% Crítico'},
+    {v:fX(ix.liqGeral),  l:'Liquidez Geral',         sub:'(AC + ARLP) / (PC + PNC)',
+     cls:cl(ix.liqGeral, v=>v>=1.0, v=>v>=0.8),
+     tip:'≥1,0 Bom · 0,8–1,0 Atenção · <0,8 Crítico'},
+    // ── Endividamento ─────────────────────────────────────────────────────
+    {v:fP(ix.endivGeral), l:'Endividamento Geral',   sub:'Dív. Bruta / AT',
+     cls:cl(ix.endivGeral,v=>v<=0.40,v=>v<=0.65),
+     tip:'≤40% Bom · 40–65% Atenção · >65% Crítico'},
+    {v:fP(ix.compEndiv),  l:'Comp. Endividamento',   sub:'PC / Dív. Bruta',
+     cls:cl(ix.compEndiv, v=>v<=0.50,v=>v<=0.70),
+     tip:'≤50% Bom · 50–70% Atenção · >70% Crítico'},
+    // ── Capital de Giro ───────────────────────────────────────────────────
+    {v:fM(ix.capGiro),    l:'Capital de Giro Líq.',  sub:'AC − PC',
+     cls:cl(ix.capGiro,   v=>v>0,    v=>false),
+     tip:'>0 Bom · <0 Crítico'},
+    // ── Rentabilidade ─────────────────────────────────────────────────────
+    {v:fP(ix.roe),        l:'ROE',                   sub:'Lucro Líq. / PL',
+     cls:cl(ix.roe,       v=>v>=0.15,v=>v>=0.05),
+     tip:'≥15% Bom · 5–15% Atenção · <5% Crítico'},
+    {v:fP(ix.roa),        l:'ROA',                   sub:'Lucro Líq. / AT',
+     cls:cl(ix.roa,       v=>v>=0.08,v=>v>=0.03),
+     tip:'≥8% Bom · 3–8% Atenção · <3% Crítico'},
+    {v:fP(ix.margemEbitda),l:'Margem EBITDA',        sub:'EBITDA / Rec. Líquida',
+     cls:cl(ix.margemEbitda,v=>v>=0.20,v=>v>=0.08),
+     tip:'≥20% Bom · 8–20% Atenção · <8% Crítico'},
+    // ── Dívida ────────────────────────────────────────────────────────────
+    {v:fX(ix.divLiqEbitda),l:'Dív. Líq. / EBITDA',  sub:'(PC+PNC−Caixa) / EBITDA',
+     cls:cl(ix.divLiqEbitda,v=>v<=2.0,v=>v<=4.0),
+     tip:'≤2x Bom · 2–4x Atenção · >4x Crítico'},
+    {v:fM(ix.divBruta),   l:'Dívida Bruta',          sub:'PC + PNC',
+     cls:'neu', tip:'Referência informativa'},
   ];
 
+  const icon={ok:'✓',warn:'!',err:'✕',neu:'—'};
+  const lbl ={ok:'Bom',warn:'Atenção',err:'Crítico',neu:'—'};
+
   document.getElementById('ix-content').innerHTML=cards.map(c=>`
-    <div class="ix-card ${c.cls}">
+    <div class="ix-card ${c.cls}" title="${c.tip}">
+      <div class="ix-badge ${c.cls}">${icon[c.cls]}&nbsp;${lbl[c.cls]}</div>
       <div class="ix-v">${c.v}</div>
       <div class="ix-l">${c.l}</div>
       <div class="ix-sub">${c.sub}</div>
