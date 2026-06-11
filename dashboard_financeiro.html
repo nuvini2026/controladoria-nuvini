@@ -100,22 +100,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tw{overflow-x:auto;margin-top:6px}
 
 /* ── DETRACTORS — TERMÔMETRO ── */
-.thermo-wrap{display:flex;gap:36px;justify-content:center;align-items:flex-end;padding:28px 12px 16px}
-.thermo-item{display:flex;flex-direction:column;align-items:center}
-.thermo-rank{font-size:11px;font-weight:800;color:#64748b;letter-spacing:.04em;margin-bottom:8px}
-.thermo-tube{width:26px;height:140px;background:#f1f5f9;border:2px solid #cbd5e1;border-radius:13px 13px 0 0;border-bottom:none;position:relative;overflow:hidden}
-.thermo-tube::before{content:'';position:absolute;left:50%;top:6px;bottom:0;width:1px;background:rgba(255,255,255,.6);pointer-events:none}
-.thermo-mercury{position:absolute;bottom:0;left:0;right:0;transition:height .8s cubic-bezier(.34,1.2,.64,1)}
-.thermo-ticks{position:absolute;right:-8px;top:0;bottom:0;width:6px}
-.thermo-tick{position:absolute;right:0;width:5px;height:1px;background:#cbd5e1}
-.thermo-bulb-wrap{width:26px;display:flex;justify-content:center}
-.thermo-bulb{width:42px;height:42px;border-radius:50%;border:2px solid #cbd5e1;margin-top:-2px;position:relative;flex-shrink:0}
-.thermo-bulb::after{content:'';position:absolute;top:6px;left:7px;width:9px;height:9px;background:rgba(255,255,255,.45);border-radius:50%}
-.thermo-info{text-align:center;margin-top:12px;width:110px}
-.thermo-val{font-size:14px;font-weight:700;color:#1e293b}
-.thermo-pct{font-size:11px;font-weight:700;margin-top:1px}
-.thermo-nm{font-size:11px;font-weight:600;color:#334155;margin-top:6px;line-height:1.35;word-break:break-word}
-.thermo-cat{font-size:10px;color:#94a3b8;margin-top:2px}
+.thermo-wrap{display:flex;gap:48px;justify-content:center;align-items:flex-start;padding:24px 8px 16px}
+.thermo-item{display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:transform .2s,filter .2s}
+.thermo-item:hover{transform:translateY(-3px);filter:drop-shadow(0 8px 18px rgba(0,0,0,.18))}
+.thermo-rnk{font-size:10px;font-weight:800;letter-spacing:.08em;color:#64748b;margin-bottom:6px;text-transform:uppercase}
+.thermo-info{text-align:center;margin-top:11px;width:112px}
+.thermo-amt{font-size:14px;font-weight:700;color:#1e293b}
+.thermo-pct-v{font-size:12px;font-weight:700;margin-top:1px}
+.thermo-nm{font-size:11px;font-weight:600;color:#334155;margin-top:5px;line-height:1.35;word-break:break-word}
+.thermo-cat{font-size:10px;color:#94a3b8;margin-top:1px}
+.thermo-badge{display:inline-block;margin-top:6px;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 9px;border-radius:10px}
+.t-tip{position:fixed;background:#1e293b;color:#e2e8f0;font-size:11px;padding:10px 14px;border-radius:8px;pointer-events:none;opacity:0;z-index:9999;max-width:210px;line-height:1.75;box-shadow:0 8px 24px rgba(0,0,0,.35);transition:opacity .12s;white-space:nowrap}
+.t-tip.on{opacity:1}
+@keyframes mercRise{0%{transform:scaleY(0)}100%{transform:scaleY(1)}}
+.merc{transform-box:fill-box;transform-origin:50% 100%;animation:mercRise 1s cubic-bezier(.34,1.1,.64,1) both}
 
 /* ── INDICATORS ── */
 .indg{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -822,43 +820,131 @@ function renderCostChart(monthly){
 // DETRATORES
 // ═══════════════════════════════════════════════
 function renderDetractors(dets,rl){
-  if(!dets.length){document.getElementById('det-content').innerHTML='<div style="padding:20px;color:var(--g);text-align:center">Sem dados para o período</div>';return;}
-  const max=dets[0].v||1;
-  // Paleta de calor: 1º=vermelho, 2º=laranja, 3º=âmbar
-  const pal=[
-    {tube:'#ef4444',hot:'#b91c1c',glow:'rgba(239,68,68,.18)'},
-    {tube:'#f97316',hot:'#c2410c',glow:'rgba(249,115,22,.15)'},
-    {tube:'#eab308',hot:'#a16207',glow:'rgba(234,179,8,.13)'},
-  ];
-  const TUBE_H=140;
-  const html=dets.map((d,i)=>{
-    const pct=d.v/max;
-    const fillH=Math.max(8,Math.round(pct*TUBE_H));
-    const p=pal[i]||pal[2];
-    // Marcas de escala no tubo (75%, 50%, 25%)
-    const ticks=[75,50,25].map(t=>`<div class="thermo-tick" style="bottom:${t/100*TUBE_H}px"></div>`).join('');
-    return`
-    <div class="thermo-item">
-      <div class="thermo-rank">#${i+1}</div>
-      <div style="position:relative">
-        <div class="thermo-tube">
-          <div class="thermo-mercury" style="height:${fillH}px;background:linear-gradient(0deg,${p.hot} 0%,${p.tube} 100%)"></div>
-          <div class="thermo-ticks">${ticks}</div>
-        </div>
-        <div class="thermo-bulb-wrap">
-          <div class="thermo-bulb" style="background:radial-gradient(circle at 38% 35%,${p.tube},${p.hot});border-color:${p.hot};box-shadow:0 0 10px ${p.glow}"></div>
-        </div>
-      </div>
+  const el=document.getElementById('det-content');
+  if(!dets.length){el.innerHTML='<div style="padding:20px;color:var(--g);text-align:center">Sem dados para o período</div>';return;}
+
+  const items=dets.map(d=>({...d,pRL:rl&&rl>0?d.v/rl:0}));
+  const maxP=Math.max(...items.map(d=>d.pRL),0.01);
+  // Escala: margem acima do maior valor para o topo não "encostar"
+  const scaleMax=Math.max(0.30,Math.ceil(maxP/0.05)*0.05+0.05);
+
+  const tempOf=p=>{
+    if(p>0.30)return{lbl:'Crítico',  col:'#ef4444',dk:'#991b1b',bg:'rgba(239,68,68,.13)'};
+    if(p>0.15)return{lbl:'Elevado',  col:'#f97316',dk:'#c2410c',bg:'rgba(249,115,22,.11)'};
+    if(p>0.05)return{lbl:'Moderado', col:'#eab308',dk:'#92400e',bg:'rgba(234,179,8,.11)'};
+    return          {lbl:'Baixo',    col:'#22c55e',dk:'#166534',bg:'rgba(34,197,94,.11)'};
+  };
+
+  // ── Dimensões do SVG do termômetro ──
+  const W=90,H=250;
+  const cx=38,tr=8,tw=tr*2;     // centro, raio do tubo, largura do tubo
+  const br=25;                   // raio do bulbo
+  const ttY=20;                  // topo do tubo
+  const tH=152;                  // altura da parte reta do tubo
+  const tbY=ttY+tH;              // y onde tubo toca o bulbo (tangente)
+  const tDY=Math.sqrt(br*br-tr*tr); // distância vertical da tangente ao centro
+  const bCY=Math.round(tbY+tDY); // centro do bulbo
+  const bBotY=bCY+br;            // fundo do bulbo
+
+  // Path único: contorno do termômetro (tubo + bulbo)
+  // M(esquerda-tangente) → sobe tubo → arco topo → desce → arco bulbo (horário)
+  const P=`M${cx-tr},${tbY} L${cx-tr},${ttY+tr} A${tr},${tr},0,0,0,${cx+tr},${ttY+tr} L${cx+tr},${tbY} A${br},${br},0,1,1,${cx-tr},${tbY} Z`;
+
+  // Área desenhável do tubo (abaixo do arco do topo até a tangente)
+  const drawH=tbY-(ttY+tr);
+
+  const html=items.map((d,i)=>{
+    const t=tempOf(d.pRL);
+    const frac=Math.min(0.97,d.pRL/scaleMax);
+    const fillY=Math.round(tbY-frac*drawH);
+    const gid=`tg${i}`,cid=`tc${i}`;
+    const delay=(i*0.18+0.05).toFixed(2);
+
+    // Marcas de escala (4 linhas horizontais)
+    const marks=[.25,.50,.75,1.0].map(f=>{
+      const my=Math.round(tbY-f*drawH);
+      const lbl=(scaleMax*f*100).toFixed(0)+'% RL';
+      return `<line x1="${cx+tr+2}" y1="${my}" x2="${cx+tr+8}" y2="${my}" stroke="#d1d5db" stroke-width="1"/>
+              <text x="${cx+tr+10}" y="${my+3.5}" font-size="6.5" fill="#9ca3af" font-family="system-ui,sans-serif">${lbl}</text>`;
+    }).join('');
+
+    // Escapa strings para data-attributes
+    const en=d.sg.replace(/"/g,'&quot;'),eg=d.grp.replace(/"/g,'&quot;');
+
+    return`<div class="thermo-item"
+         data-n="${en}" data-g="${eg}"
+         data-v="R$&nbsp;${fmtMil(d.v)} mil" data-p="${fmtP(d.pRL)} da RL"
+         data-l="${t.lbl}" data-c="${t.col}"
+         onmouseenter="sTip(event,this)" onmouseleave="hTip()">
+      <div class="thermo-rnk">#${i+1}</div>
+      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" overflow="visible" style="overflow:visible">
+        <defs>
+          <linearGradient id="${gid}" x1="${cx}" y1="${ttY}" x2="${cx}" y2="${bBotY}" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stop-color="${t.dk}"/>
+            <stop offset="50%"  stop-color="${t.col}"/>
+            <stop offset="100%" stop-color="#fbbf24"/>
+          </linearGradient>
+          <clipPath id="${cid}"><path d="${P}"/></clipPath>
+        </defs>
+        <!-- Fundo do termômetro -->
+        <path d="${P}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+        <!-- Mercúrio (animado, sobe do bulbo) -->
+        <rect x="0" y="${fillY}" width="${W}" height="${bBotY-fillY+4}"
+              fill="url(#${gid})" clip-path="url(#${cid})"
+              class="merc" style="animation-delay:${delay}s"/>
+        <!-- Brilho lateral no tubo -->
+        <rect x="${cx-tr+3}" y="${ttY+tr+4}" width="3" height="${drawH-12}"
+              rx="1.5" fill="rgba(255,255,255,.22)" clip-path="url(#${cid})"/>
+        <!-- Reflexo no bulbo -->
+        <circle cx="${cx-9}" cy="${bCY-8}" r="5" fill="rgba(255,255,255,.28)" clip-path="url(#${cid})"/>
+        <!-- Linha marcadora no nível atual + % -->
+        ${frac>0.06?`
+        <line x1="${cx-tr-1}" y1="${fillY}" x2="${cx+tr+1}" y2="${fillY}"
+              stroke="${t.col}" stroke-width="1.5" opacity=".8"/>
+        <text x="${cx-tr-3}" y="${fillY+3}" text-anchor="end"
+              font-size="7.5" fill="${t.col}" font-weight="700" font-family="system-ui,sans-serif">${(d.pRL*100).toFixed(1)}%</text>`:''}
+        <!-- Graduação -->
+        ${marks}
+        <!-- Rótulo de temperatura acima do tubo -->
+        <text x="${cx}" y="${ttY-6}" text-anchor="middle"
+              font-size="8.5" fill="${t.col}" font-weight="800"
+              font-family="system-ui,sans-serif" letter-spacing=".04em">${t.lbl.toUpperCase()}</text>
+      </svg>
       <div class="thermo-info">
-        <div class="thermo-val">R$&nbsp;${fmtMil(d.v)} mil</div>
-        ${rl?`<div class="thermo-pct" style="color:${p.tube}">${fmtP(d.v/rl)} RL</div>`:''}
+        <div class="thermo-amt">R$&nbsp;${fmtMil(d.v)}&nbsp;mil</div>
+        <div class="thermo-pct-v" style="color:${t.col}">${fmtP(d.pRL)}&nbsp;da RL</div>
         <div class="thermo-nm">${d.sg}</div>
         <div class="thermo-cat">${d.grp}</div>
+        <div class="thermo-badge" style="background:${t.bg};color:${t.col}">${t.lbl}</div>
       </div>
     </div>`;
   }).join('');
-  document.getElementById('det-content').innerHTML=`<div class="thermo-wrap">${html}</div>`;
+
+  // Tooltip global
+  if(!document.getElementById('t-tip')){
+    const tt=document.createElement('div');
+    tt.id='t-tip';tt.className='t-tip';
+    document.body.appendChild(tt);
+  }
+
+  el.innerHTML=`<div class="thermo-wrap">${html}</div>`;
 }
+
+window.sTip=(e,el)=>{
+  const tip=document.getElementById('t-tip');if(!tip)return;
+  const{n,g,v,p,l,c}=el.dataset;
+  tip.innerHTML=
+    `<div style="font-weight:700;font-size:12px;margin-bottom:2px">${n}</div>`+
+    `<div style="color:#94a3b8;font-size:10px;margin-bottom:6px">${g}</div>`+
+    `<div>${v}</div>`+
+    `<div style="color:${c};font-weight:700">${p}</div>`+
+    `<div style="margin-top:5px;font-size:10px;color:${c};font-weight:600">🌡 Temperatura: ${l}</div>`;
+  const r=el.getBoundingClientRect();
+  tip.style.left=Math.min(r.right+10,window.innerWidth-220)+'px';
+  tip.style.top=Math.max(8,r.top-4)+'px';
+  tip.classList.add('on');
+};
+window.hTip=()=>{const t=document.getElementById('t-tip');if(t)t.classList.remove('on');};
 
 // ═══════════════════════════════════════════════
 // INDICADORES
