@@ -99,21 +99,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tg{color:var(--ok)!important}
 .tw{overflow-x:auto;margin-top:6px}
 
-/* ── DETRACTORS ── */
-.det-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
-@media(max-width:900px){.det-grid{grid-template-columns:1fr}}
-.det-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bdr);transition:.12s}
-.det-row:hover{background:#f0f6ff}
-.det-rk{width:20px;height:20px;border-radius:50%;background:var(--m);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.det-rk.top3{background:var(--r)}
-.det-info{flex:1;min-width:0}
-.det-nm{font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.det-cat{font-size:10px;color:var(--g)}
-.det-bw{width:55px;flex-shrink:0}
-.det-bar{height:4px;background:linear-gradient(90deg,var(--r),var(--c));border-radius:2px}
-.det-val{text-align:right;flex-shrink:0;min-width:80px}
-.det-amt{font-size:12px;font-weight:700;color:var(--m)}
-.det-pct{font-size:10px;color:var(--g)}
+/* ── DETRACTORS — TERMÔMETRO ── */
+.thermo-wrap{display:flex;gap:36px;justify-content:center;align-items:flex-end;padding:28px 12px 16px}
+.thermo-item{display:flex;flex-direction:column;align-items:center}
+.thermo-rank{font-size:11px;font-weight:800;color:#64748b;letter-spacing:.04em;margin-bottom:8px}
+.thermo-tube{width:26px;height:140px;background:#f1f5f9;border:2px solid #cbd5e1;border-radius:13px 13px 0 0;border-bottom:none;position:relative;overflow:hidden}
+.thermo-tube::before{content:'';position:absolute;left:50%;top:6px;bottom:0;width:1px;background:rgba(255,255,255,.6);pointer-events:none}
+.thermo-mercury{position:absolute;bottom:0;left:0;right:0;transition:height .8s cubic-bezier(.34,1.2,.64,1)}
+.thermo-ticks{position:absolute;right:-8px;top:0;bottom:0;width:6px}
+.thermo-tick{position:absolute;right:0;width:5px;height:1px;background:#cbd5e1}
+.thermo-bulb-wrap{width:26px;display:flex;justify-content:center}
+.thermo-bulb{width:42px;height:42px;border-radius:50%;border:2px solid #cbd5e1;margin-top:-2px;position:relative;flex-shrink:0}
+.thermo-bulb::after{content:'';position:absolute;top:6px;left:7px;width:9px;height:9px;background:rgba(255,255,255,.45);border-radius:50%}
+.thermo-info{text-align:center;margin-top:12px;width:110px}
+.thermo-val{font-size:14px;font-weight:700;color:#1e293b}
+.thermo-pct{font-size:11px;font-weight:700;margin-top:1px}
+.thermo-nm{font-size:11px;font-weight:600;color:#334155;margin-top:6px;line-height:1.35;word-break:break-word}
+.thermo-cat{font-size:10px;color:#94a3b8;margin-top:2px}
 
 /* ── INDICATORS ── */
 .indg{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -280,7 +282,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="sec">
     <div class="sh"><span class="sh-title">Principais Detratores do Resultado</span><div class="sh-line"></div></div>
     <div class="card">
-      <div class="ct">Top 16 categorias por valor — período selecionado</div>
+      <div class="ct">Top 3 maiores despesas — quanto maior o valor, mais quente o termômetro</div>
       <div class="cs">Ranking por subgrupo contábil; % calculado sobre Receita Líquida</div>
       <div id="det-content"></div>
     </div>
@@ -560,7 +562,7 @@ function topDet(data,year,month,ytd){
     if(!m[r.subgrupo]) m[r.subgrupo]={sg:r.subgrupo,grp:r.grupo,v:0};
     m[r.subgrupo].v+=r.mov;
   });
-  return Object.values(m).sort((a,b)=>b.v-a.v).slice(0,16);
+  return Object.values(m).sort((a,b)=>b.v-a.v).slice(0,3);
 }
 
 // ═══════════════════════════════════════════════
@@ -822,20 +824,40 @@ function renderCostChart(monthly){
 function renderDetractors(dets,rl){
   if(!dets.length){document.getElementById('det-content').innerHTML='<div style="padding:20px;color:var(--g);text-align:center">Sem dados para o período</div>';return;}
   const max=dets[0].v||1;
-  const html=dets.map((d,i)=>`
-    <div class="det-row">
-      <div class="det-rk ${i<3?'top3':''}">${i+1}</div>
-      <div class="det-info">
-        <div class="det-nm">${d.sg}</div>
-        <div class="det-cat">${d.grp}</div>
+  // Paleta de calor: 1º=vermelho, 2º=laranja, 3º=âmbar
+  const pal=[
+    {tube:'#ef4444',hot:'#b91c1c',glow:'rgba(239,68,68,.18)'},
+    {tube:'#f97316',hot:'#c2410c',glow:'rgba(249,115,22,.15)'},
+    {tube:'#eab308',hot:'#a16207',glow:'rgba(234,179,8,.13)'},
+  ];
+  const TUBE_H=140;
+  const html=dets.map((d,i)=>{
+    const pct=d.v/max;
+    const fillH=Math.max(8,Math.round(pct*TUBE_H));
+    const p=pal[i]||pal[2];
+    // Marcas de escala no tubo (75%, 50%, 25%)
+    const ticks=[75,50,25].map(t=>`<div class="thermo-tick" style="bottom:${t/100*TUBE_H}px"></div>`).join('');
+    return`
+    <div class="thermo-item">
+      <div class="thermo-rank">#${i+1}</div>
+      <div style="position:relative">
+        <div class="thermo-tube">
+          <div class="thermo-mercury" style="height:${fillH}px;background:linear-gradient(0deg,${p.hot} 0%,${p.tube} 100%)"></div>
+          <div class="thermo-ticks">${ticks}</div>
+        </div>
+        <div class="thermo-bulb-wrap">
+          <div class="thermo-bulb" style="background:radial-gradient(circle at 38% 35%,${p.tube},${p.hot});border-color:${p.hot};box-shadow:0 0 10px ${p.glow}"></div>
+        </div>
       </div>
-      <div class="det-bw"><div class="det-bar" style="width:${Math.round(d.v/max*100)}%"></div></div>
-      <div class="det-val">
-        <div class="det-amt">R$ ${fmtMil(d.v)} mil</div>
-        <div class="det-pct">${rl?fmtP(d.v/rl)+' RL':'—'}</div>
+      <div class="thermo-info">
+        <div class="thermo-val">R$&nbsp;${fmtMil(d.v)} mil</div>
+        ${rl?`<div class="thermo-pct" style="color:${p.tube}">${fmtP(d.v/rl)} RL</div>`:''}
+        <div class="thermo-nm">${d.sg}</div>
+        <div class="thermo-cat">${d.grp}</div>
       </div>
-    </div>`).join('');
-  document.getElementById('det-content').innerHTML=`<div class="det-grid">${html}</div>`;
+    </div>`;
+  }).join('');
+  document.getElementById('det-content').innerHTML=`<div class="thermo-wrap">${html}</div>`;
 }
 
 // ═══════════════════════════════════════════════
