@@ -1190,15 +1190,18 @@ function calcBP(accounts){
   const rawAT=['AC','ANC'].flatMap(c=>byCat[c]).reduce((s,a)=>s+a.saldo,0);
   const rawPCPNC=['PC','PNC'].flatMap(c=>byCat[c]).reduce((s,a)=>s+a.saldo,0);
   const rawPL=byCat['PL'].reduce((s,a)=>s+a.saldo,0);
-  const optA=Math.abs(rawAT-(rawPCPNC+rawPL));          // sem inversão
-  const optB=Math.abs(rawAT-(-rawPCPNC-rawPL));         // inverte tudo
-  const optC=Math.abs(rawAT-(-rawPCPNC+rawPL));         // inverte só PC+PNC
-  const best=optA<=optB&&optA<=optC?'A':optB<=optC?'B':'C';
+  const optA=Math.abs(rawAT-(rawPCPNC+rawPL));           // sem inversão
+  const optB=Math.abs(rawAT-(-rawPCPNC-rawPL));          // inverte PC+PNC+PL
+  const optC=Math.abs(rawAT-(-rawPCPNC+rawPL));          // inverte só PC+PNC (PL devedor = prejuízo)
+  const optD=Math.abs(rawAT-(rawPCPNC-rawPL));           // inverte só PL (caso misto)
+  const minOpt=Math.min(optA,optB,optC,optD);
+  const best=minOpt===optA?'A':minOpt===optB?'B':minOpt===optC?'C':'D';
 
   const fixed={};
   for(const cat of cats){
     const flip=(best==='B'&&(cat==='PC'||cat==='PNC'||cat==='PL'))
-             ||(best==='C'&&(cat==='PC'||cat==='PNC'));
+             ||(best==='C'&&(cat==='PC'||cat==='PNC'))
+             ||(best==='D'&&cat==='PL');
     fixed[cat]=flip?byCat[cat].map(a=>({...a,saldo:-a.saldo})):byCat[cat];
   }
 
@@ -1323,8 +1326,7 @@ function calcIndicesBP(bp,dre){
   const endivGeral=safe(passTerceiros,bp.AT);
   const compEndiv=safe(bp.PC,passTerceiros);
   const capGiro=bp.AC-bp.PC;
-  // ROE só faz sentido com PL positivo; PL negativo distorce o índice
-  const roe=dre&&bp.PL>0?safe(dre.lLiq,bp.PL):null;
+  const roe=dre&&bp.PL!==0?safe(dre.lLiq,bp.PL):null;
   const roa=dre?safe(dre.lLiq,bp.AT):null;
   const margemEbitda=dre?dre.mgEBITDA:null;
   // Dív/EBITDA só faz sentido com EBITDA positivo; EBITDA ≤ 0 gera classificação absurda
