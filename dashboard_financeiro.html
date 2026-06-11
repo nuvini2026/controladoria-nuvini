@@ -969,12 +969,15 @@ function renderIndicators(dre){
     {l:'% Receita Recorrente',   v:dre.pctRec,    cost:false},
     {l:'CPV / Receita Líquida',  v:dre.receitaLiq?dre.cpv/dre.receitaLiq:0, cost:true},
     {l:'Desp. Op. / Rec. Líq.',  v:dre.receitaLiq?(dre.desCom+dre.desGA)/dre.receitaLiq:0, cost:true},
-    {l:'Resultado Fin. / EBIT',  v:dre.ebit?dre.resFin/Math.abs(dre.ebit):0, cost:false},
+    // Carga financeira: Desp. Financeiras / EBIT — quanto do resultado operacional é consumido por juros
+    {l:'Desp. Fin. / EBIT',      v:dre.ebit>0&&dre.desFin>0?dre.desFin/dre.ebit:null, cost:true, lowBad:false},
   ];
   document.getElementById('indicators').innerHTML=items.map(it=>{
+    if(it.v===null||!isFinite(it.v)) return`<div class="ind neu"><div class="iv">—</div><div class="il">${it.l}</div></div>`;
     const p=it.v*100;
     let cls,bcls;
-    if(it.cost){cls=p<40?'ok':p<65?'warn':'err'; bcls=p<40?'ok':p<65?'warn':'err';}
+    if(it.cost&&it.lowBad===false){cls=p<=20?'ok':p<=50?'warn':'err'; bcls=cls;}
+    else if(it.cost){cls=p<40?'ok':p<65?'warn':'err'; bcls=p<40?'ok':p<65?'warn':'err';}
     else{cls=p>=10?'ok':p>=0?'warn':'err'; bcls=cls;}
     return`<div class="ind ${bcls}">
       <div class="iv">${fmtP(it.v)}</div>
@@ -1244,20 +1247,25 @@ function calcBP(accounts){
 // ═══════════════════════════════════════════════
 function calcIndicesBP(bp,dre){
   const safe=(n,d2)=>d2&&d2!==0?n/d2:null;
-  const divBruta=bp.PC+bp.PNC;
-  const divLiq=divBruta-bp.caixa;
+  // "divBruta" aqui é todo o passivo de terceiros (PC+PNC), não só dívida financeira
+  const passTerceiros=bp.PC+bp.PNC;
+  const divLiq=passTerceiros-bp.caixa;
   const liqCorr=safe(bp.AC,bp.PC);
   const liqSeca=safe(bp.AC-bp.estoques,bp.PC);
   const liqImed=safe(bp.caixa,bp.PC);
   const liqGeral=safe(bp.AC+bp.ARLP,bp.PC+bp.PNC);
-  const endivGeral=safe(divBruta,bp.AT);
-  const compEndiv=safe(bp.PC,divBruta);
+  const endivGeral=safe(passTerceiros,bp.AT);
+  const compEndiv=safe(bp.PC,passTerceiros);
   const capGiro=bp.AC-bp.PC;
-  const roe=dre?safe(dre.lLiq,bp.PL):null;
+  // ROE só faz sentido com PL positivo; PL negativo distorce o índice
+  const roe=dre&&bp.PL>0?safe(dre.lLiq,bp.PL):null;
   const roa=dre?safe(dre.lLiq,bp.AT):null;
   const margemEbitda=dre?dre.mgEBITDA:null;
-  const divLiqEbitda=dre&&dre.ebitda?safe(divLiq,dre.ebitda):null;
-  return{liqCorr,liqSeca,liqImed,liqGeral,endivGeral,compEndiv,capGiro,roe,roa,margemEbitda,divLiqEbitda,divBruta,divLiq};
+  // Dív/EBITDA só faz sentido com EBITDA positivo; EBITDA ≤ 0 gera classificação absurda
+  const divLiqEbitda=dre&&dre.ebitda>0?safe(divLiq,dre.ebitda):null;
+  // Cobertura de Juros = EBIT / Despesas Financeiras (ICR — padrão de mercado para credores)
+  const coberturaJuros=dre&&dre.desFin>0?safe(dre.ebit,dre.desFin):null;
+  return{liqCorr,liqSeca,liqImed,liqGeral,endivGeral,compEndiv,capGiro,roe,roa,margemEbitda,divLiqEbitda,coberturaJuros,passTerceiros,divLiq};
 }
 
 
@@ -1336,10 +1344,10 @@ function renderIndicesBP(ix){
      cls:cl(ix.liqGeral, v=>v>=1.0, v=>v>=0.8),
      tip:'≥1,0 Bom · 0,8–1,0 Atenção · <0,8 Crítico'},
     // ── Endividamento ─────────────────────────────────────────────────────
-    {v:fP(ix.endivGeral), l:'Endividamento Geral',   sub:'Dív. Bruta / AT',
+    {v:fP(ix.endivGeral), l:'Endividamento Geral',   sub:'(PC + PNC) / AT',
      cls:cl(ix.endivGeral,v=>v<=0.40,v=>v<=0.65),
      tip:'≤40% Bom · 40–65% Atenção · >65% Crítico'},
-    {v:fP(ix.compEndiv),  l:'Comp. Endividamento',   sub:'PC / Dív. Bruta',
+    {v:fP(ix.compEndiv),  l:'Comp. Endividamento',   sub:'PC / (PC + PNC)',
      cls:cl(ix.compEndiv, v=>v<=0.50,v=>v<=0.70),
      tip:'≤50% Bom · 50–70% Atenção · >70% Crítico'},
     // ── Capital de Giro ───────────────────────────────────────────────────
@@ -1356,12 +1364,13 @@ function renderIndicesBP(ix){
     {v:fP(ix.margemEbitda),l:'Margem EBITDA',        sub:'EBITDA / Rec. Líquida',
      cls:cl(ix.margemEbitda,v=>v>=0.20,v=>v>=0.08),
      tip:'≥20% Bom · 8–20% Atenção · <8% Crítico'},
-    // ── Dívida ────────────────────────────────────────────────────────────
+    // ── Dívida / Cobertura ────────────────────────────────────────────────
     {v:fX(ix.divLiqEbitda),l:'Dív. Líq. / EBITDA',  sub:'(PC+PNC−Caixa) / EBITDA',
      cls:cl(ix.divLiqEbitda,v=>v<=2.0,v=>v<=4.0),
-     tip:'≤2x Bom · 2–4x Atenção · >4x Crítico'},
-    {v:fM(ix.divBruta),   l:'Dívida Bruta',          sub:'PC + PNC',
-     cls:'neu', tip:'Referência informativa'},
+     tip:'≤2x Bom · 2–4x Atenção · >4x Crítico · "—" se EBITDA ≤ 0'},
+    {v:fX(ix.coberturaJuros),l:'Cobertura de Juros', sub:'EBIT / Desp. Financeiras',
+     cls:cl(ix.coberturaJuros,v=>v>=3.0,v=>v>=1.5),
+     tip:'≥3x Bom · 1,5–3x Atenção · <1,5x Crítico'},
   ];
 
   const icon={ok:'✓',warn:'!',err:'✕',neu:'—'};
