@@ -1180,20 +1180,26 @@ function calcBP(accounts){
     if(byCat[a.cat]) byCat[a.cat].push(a);
   }
 
-  // Detecção global de convenção de sinais via equação fundamental:
-  // Em convenção débito (padrão Protheus): ativos são débitos (+) e passivos/PL são créditos (−)
-  // → soma de TODAS as contas ≈ 0.  Se a soma relativa for < 10% do total absoluto, é convenção débito.
-  // Em convenção absoluta (ambos positivos): soma ≈ 2 × ativos.
-  const allAcnts=cats.flatMap(c=>byCat[c]);
-  const totalAbs=allAcnts.reduce((s,a)=>s+Math.abs(a.saldo),0);
-  const totalSum=allAcnts.reduce((s,a)=>s+a.saldo,0);
-  const debitConv=totalAbs>0&&Math.abs(totalSum)/totalAbs<0.10;
+  // ── Detecção robusta de convenção de sinais ──────────────────────────────
+  // A contabilidade de dupla entrada garante: Ativo = Passivo + PL.
+  // Testamos 3 hipóteses e escolhemos a que MINIMIZA |AT − PT|:
+  //   A  = sem inversão (convenção absoluta: PC/PNC/PL armazenados como positivos)
+  //   B  = inverte PC + PNC + PL (convenção débito, PL credor = equity positivo)
+  //   C  = inverte só PC + PNC   (convenção débito + patrimônio negativo:
+  //         prejuízo > capital → PL tem saldo devedor = positivo na convenção débito)
+  const rawAT=['AC','ANC'].flatMap(c=>byCat[c]).reduce((s,a)=>s+a.saldo,0);
+  const rawPCPNC=['PC','PNC'].flatMap(c=>byCat[c]).reduce((s,a)=>s+a.saldo,0);
+  const rawPL=byCat['PL'].reduce((s,a)=>s+a.saldo,0);
+  const optA=Math.abs(rawAT-(rawPCPNC+rawPL));          // sem inversão
+  const optB=Math.abs(rawAT-(-rawPCPNC-rawPL));         // inverte tudo
+  const optC=Math.abs(rawAT-(-rawPCPNC+rawPL));         // inverte só PC+PNC
+  const best=optA<=optB&&optA<=optC?'A':optB<=optC?'B':'C';
 
   const fixed={};
   for(const cat of cats){
-    fixed[cat]=(debitConv&&cat!=='AC'&&cat!=='ANC')
-      ?byCat[cat].map(a=>({...a,saldo:-a.saldo}))
-      :byCat[cat];
+    const flip=(best==='B'&&(cat==='PC'||cat==='PNC'||cat==='PL'))
+             ||(best==='C'&&(cat==='PC'||cat==='PNC'));
+    fixed[cat]=flip?byCat[cat].map(a=>({...a,saldo:-a.saldo})):byCat[cat];
   }
 
   const sum=cat=>fixed[cat].reduce((s,a)=>s+a.saldo,0);
@@ -1227,34 +1233,76 @@ function calcBP(accounts){
   return{
     AC,ANC,AT,PC,PNC,PL,PT,caixa,estoques,ARLP,
     ifrs:{
+      // ── ATIVO CIRCULANTE (ordem de liquidez decrescente) ──────────────────
       ac: grpLines(fixed['AC'],[
-        ['Caixa e Equivalentes de Caixa',        /caixa|banco|disponib|dinheiro/],
-        ['Aplicações Financeiras',                /aplicac|financ|titulo|cdb|lci|lca|poupan/],
-        ['Contas a Receber de Clientes',          /receber|client|duplicata/],
-        ['Estoques',                              /estoque|mercador|produto|materia/],
-        ['Despesas Antecipadas',                  /antecip|prepag/],
+        ['Caixa e Equivalentes de Caixa',
+          /caixa|banco|disponivel|disponib|dinheiro/],
+        ['Aplicações Financeiras de Curto Prazo',
+          /aplicac|cdb|lci|lca|poupan|fundoinvest|tesouro|rdblc|rdb|titulores/],
+        ['Contas a Receber de Clientes',
+          /receber|client|duplicata|fatura|boleto/],
+        ['Tributos a Recuperar',
+          /icms.*cred|pis.*cred|cofins.*cred|tributo.*recup|imposto.*recup|iss.*cred|ipi.*cred|irpj.*recup|csll.*recup/],
+        ['Estoques',
+          /estoque|mercador|produto|materia.*prima|almoxar/],
+        ['Adiantamentos e Despesas Antecipadas',
+          /adiantament|antecip|prepag|despesa.*antecip/],
       ]),
+      // ── ATIVO NÃO CIRCULANTE (IAS 1: investimentos → imobilizado → intangível) ──
       anc: grpLines(fixed['ANC'],[
-        ['Realizável a Longo Prazo',              /realizavel|longo|receber/],
-        ['Investimentos',                         /investiment|particip|coligad|controlad/],
-        ['Imobilizado, Líquido',                  /imobil|maquina|equipament|veiculo|terreno|instala|movel/],
-        ['Intangível',                            /intangiv|softwar|marca|patent|goodwill/],
-        ['(-) Depreciação / Amortização Acum.',   /deprec|amortiz/],
+        ['Realizável a Longo Prazo',
+          /realizavel|longo.*prazo|receber.*lp/],
+        ['Investimentos',
+          /investiment|particip|coligad|controlad|subsidiaria|holding/],
+        ['Imobilizado Bruto',
+          /imobil|maquina|equipament|veiculo|terreno|instala|movel|propriedade|planta/],
+        ['(-) Depreciação e Amortização Acumuladas',
+          /deprec|amortiz/],
+        ['Intangível',
+          /intangiv|softwar|marca|patent|goodwill|licen/],
+        ['Ativo de Direito de Uso (Leasing)',
+          /direito.*uso|arrendament|leasing|rou/],
       ]),
+      // ── PASSIVO CIRCULANTE (ordem de exigibilidade) ───────────────────────
       pc: grpLines(fixed['PC'],[
-        ['Empréstimos e Financiamentos',          /empresti|financiam|debentur|cce|cedula/],
-        ['Fornecedores',                          /fornecedor/],
-        ['Obrigações Fiscais e Tributárias',      /fiscal|imposto|tributo|inss|fgts|pis|cofins|irpj|csll/],
-        ['Provisões Trabalhistas',                /salario|trabalhist|folha|pessoal|ferias|decimo/],
+        ['Empréstimos e Financiamentos',
+          /empresti|financiam|debentur|cce|cedula|antecip.*banco|mutuo/],
+        ['Obrigação de Arrendamento — CP',
+          /arrendament|leasing|direito.*uso/],
+        ['Fornecedores e Contas a Pagar',
+          /fornecedor|contasapagar|contas.*pagar/],
+        ['Obrigações Fiscais e Tributárias',
+          /fiscal|imposto|tributo|inss|fgts|pis|cofins|irpj|csll|iss|icms|ipi/],
+        ['Obrigações Trabalhistas e Previdenciárias',
+          /salario|trabalhist|folha|pessoal|ferias|decimo|terceiro|remuner|provisao.*rh/],
+        ['Adiantamentos de Clientes',
+          /adiantamentocliente|adiant.*client|recebantecip|antecip.*client/],
       ]),
+      // ── PASSIVO NÃO CIRCULANTE ────────────────────────────────────────────
       pnc: grpLines(fixed['PNC'],[
-        ['Empréstimos e Financiamentos',          /empresti|financiam|debentur/],
-        ['Parcelamentos Fiscais',                 /parcelament|fiscal|tributo/],
+        ['Empréstimos e Financiamentos de LP',
+          /empresti|financiam|debentur|mutuo/],
+        ['Obrigação de Arrendamento — LP',
+          /arrendament|leasing|direito.*uso/],
+        ['Parcelamentos e Obrigações Fiscais LP',
+          /parcelament|refis|pert|fiscal|tributo/],
+        ['Provisões para Contingências',
+          /contingenc|provisao|processo/],
       ]),
+      // ── PATRIMÔNIO LÍQUIDO (IAS 1) ────────────────────────────────────────
       pl: grpLines(fixed['PL'],[
-        ['Capital Social Integralizado',          /capital/],
-        ['Reservas de Capital e de Lucros',       /reserva/],
-        ['Lucros / (Prejuízos) Acumulados',       /resultado|lucro|prejuizo|retido|acumulad/],
+        ['Capital Social Integralizado',
+          /capital.*social|capital.*integr/],
+        ['Reservas de Capital',
+          /reserva.*capital|agio|aportecap/],
+        ['Reservas de Lucros',
+          /reserva.*lucro|reserva.*legal|reserva.*estatut|reserva.*retenc/],
+        ['Ajustes de Avaliação Patrimonial',
+          /ajuste.*aval|oci|aval.*patrim|ajuste.*cvm/],
+        ['Ações em Tesouraria',
+          /tesourar|acoes.*prop|buyback/],
+        ['Lucros / (Prejuízos) Acumulados',
+          /resultado.*acum|lucro.*acum|prejuizo.*acum|retido|perdas.*acum|deficit/],
       ]),
     }
   };
@@ -1301,7 +1349,8 @@ function renderBP(bp){
       <span class="bp-ln-vl">${fv(v)}</span>
     </div>`).join('');
 
-  const balanced=Math.abs(bp.AT-bp.PT)<2;
+  const scale=Math.max(Math.abs(bp.AT),Math.abs(bp.PT),1);
+  const balanced=Math.abs(bp.AT-bp.PT)/scale<0.001;
 
   const ativoHtml=`
     <div class="bp-side">
