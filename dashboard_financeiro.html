@@ -145,16 +145,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #bal-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;transition:.15s;flex-shrink:0;white-space:nowrap;display:flex;align-items:center;gap:4px}
 #bal-btn:hover{background:rgba(255,255,255,.25)}
 
-/* ── BALANÇO PATRIMONIAL ── */
-.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.bp-side{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
-.bp-hdr{font-size:11px;font-weight:800;color:#fff;background:var(--m);padding:7px 12px;border-radius:6px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
-.bp-grp{font-size:10px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:.4px;padding:8px 0 2px 0;margin-top:4px;border-top:1px solid var(--bdr)}
-.bp-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px;color:#1e293b}
-.bp-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;color:#4a5568}
-.bp-vl{font-size:12px;font-weight:600;color:var(--m);white-space:nowrap}
-.bp-tot{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:6px;margin-top:8px;background:var(--m);color:#fff;font-weight:800;font-size:13px}
-.bp-sub{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:4px;background:#EEF3FF;color:var(--m);font-weight:700;font-size:12px;margin-top:6px}
+/* ── BALANÇO PATRIMONIAL — IFRS ── */
+.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.bp-side{background:var(--card);padding:0;min-width:0}
+.bp-hdr{background:var(--m);color:#fff;font-size:10.5px;font-weight:700;padding:9px 14px;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center}
+.bp-hdr-note{font-size:9px;font-weight:400;opacity:.7}
+.bp-sec{font-size:9px;font-weight:800;color:#64748b;padding:7px 14px 3px;text-transform:uppercase;letter-spacing:.08em;background:#f8fafc;border-top:1px solid var(--bdr)}
+.bp-ln{display:flex;justify-content:space-between;align-items:center;padding:4px 14px 4px 24px;border-bottom:1px solid #f1f5f9}
+.bp-ln-nm{font-size:11px;color:#374151;flex:1;padding-right:10px}
+.bp-ln-vl{font-size:11px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--m)}
+.bp-st{display:flex;justify-content:space-between;padding:5px 14px;background:#eff6ff;border-top:1px solid #bfdbfe;border-bottom:1px solid var(--bdr);font-size:11px;font-weight:700;color:var(--m)}
+.bp-gt{display:flex;justify-content:space-between;padding:9px 14px;background:var(--m);color:#fff;font-size:12px;font-weight:800}
 
 /* ── ÍNDICES FINANCEIROS ── */
 .ix-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -1186,62 +1187,55 @@ function calcBP(accounts){
   // ARLP: ANC sem imobilizado/intangível
   const ARLP=fixed['ANC'].filter(a=>!/imobil|intang|deprec|direito/i.test(a.desc)).reduce((s,a)=>s+a.saldo,0);
 
-  // Ordenação IFRS por liquidez dentro de cada grupo
-  const liqRank=(desc,cat)=>{
-    const d=norm(desc);
-    if(cat==='AC'){
-      if(/caixa|banco|disponib|dinheiro/.test(d))          return 0; // disponibilidades
-      if(/aplicac|financ|titulo|cdb|lci|lca|poupan/.test(d)) return 1; // aplicações
-      if(/receber|client|duplicata|credito/.test(d))        return 2; // recebíveis
-      if(/estoque|mercador|produto|materia/.test(d))         return 3; // estoques
-      if(/antecip|prepag|despesa/.test(d))                  return 4; // despesas antecipadas
-      return 5;
+  // Agrupamento IFRS exclusivo: cada conta vai para o primeiro grupo que casar
+  const grpLines=(arr,groups)=>{
+    const pool=[...arr];
+    const lines=[];
+    for(const [label,re] of groups){
+      let v=0;
+      for(let i=pool.length-1;i>=0;i--){
+        if(re.test(norm(pool[i].desc))){v+=pool[i].saldo;pool.splice(i,1);}
+      }
+      if(Math.abs(v)>1) lines.push({l:label,v});
     }
-    if(cat==='ANC'){
-      if(/realizavel|longo|receber/.test(d))                return 0; // realizável LP
-      if(/investiment|particip|coligad|controlad/.test(d))  return 1; // investimentos
-      if(/imobil|maquina|equipament|veiculo|terreno|instala|movel/.test(d)) return 2; // imobilizado
-      if(/intangiv|softwar|marca|patent|goodwill/.test(d))  return 3; // intangível
-      if(/deprec|amortiz/.test(d))                          return 4; // redutoras
-      return 2;
-    }
-    if(cat==='PC'){
-      if(/empresti|financiam|debentur|cce|cedula/.test(d))  return 0; // dívida financeira
-      if(/fornecedor/.test(d))                               return 1; // fornecedores
-      if(/fiscal|imposto|tributo|inss|fgts|pis|cofins|irpj|csll/.test(d)) return 2; // obrigações fiscais
-      if(/salario|trabalhist|folha|pessoal|ferias|decimo/.test(d)) return 3; // obrigações trabalhistas
-      return 4;
-    }
-    if(cat==='PNC'){
-      if(/empresti|financiam|debentur/.test(d))             return 0;
-      if(/parcelament|fiscal|tributo/.test(d))               return 1;
-      return 2;
-    }
-    if(cat==='PL'){
-      if(/capital/.test(d))                                  return 0;
-      if(/reserva/.test(d))                                  return 1;
-      if(/resultado|lucro|prejuizo|retido|acumulad/.test(d)) return 2;
-      return 3;
-    }
-    return 5;
+    const outros=pool.reduce((s,a)=>s+a.saldo,0);
+    if(Math.abs(outros)>1) lines.push({l:'Outros',v:outros});
+    return lines;
   };
-
-  const topGrp=(arr,cat)=>arr
-    .filter(a=>Math.abs(a.saldo)>1)
-    .sort((a,b)=>{
-      const ra=liqRank(a.desc,cat),rb=liqRank(b.desc,cat);
-      return ra!==rb?ra-rb:Math.abs(b.saldo)-Math.abs(a.saldo);
-    })
-    .slice(0,8)
-    .map(a=>[a.desc,a.saldo]);
 
   return{
     AC,ANC,AT,PC,PNC,PL,PT,caixa,estoques,ARLP,
-    grpAC: topGrp(fixed['AC'], 'AC'),
-    grpANC:topGrp(fixed['ANC'],'ANC'),
-    grpPC: topGrp(fixed['PC'], 'PC'),
-    grpPNC:topGrp(fixed['PNC'],'PNC'),
-    grpPL: topGrp(fixed['PL'], 'PL')
+    ifrs:{
+      ac: grpLines(fixed['AC'],[
+        ['Caixa e Equivalentes de Caixa',        /caixa|banco|disponib|dinheiro/],
+        ['Aplicações Financeiras',                /aplicac|financ|titulo|cdb|lci|lca|poupan/],
+        ['Contas a Receber de Clientes',          /receber|client|duplicata/],
+        ['Estoques',                              /estoque|mercador|produto|materia/],
+        ['Despesas Antecipadas',                  /antecip|prepag/],
+      ]),
+      anc: grpLines(fixed['ANC'],[
+        ['Realizável a Longo Prazo',              /realizavel|longo|receber/],
+        ['Investimentos',                         /investiment|particip|coligad|controlad/],
+        ['Imobilizado, Líquido',                  /imobil|maquina|equipament|veiculo|terreno|instala|movel/],
+        ['Intangível',                            /intangiv|softwar|marca|patent|goodwill/],
+        ['(-) Depreciação / Amortização Acum.',   /deprec|amortiz/],
+      ]),
+      pc: grpLines(fixed['PC'],[
+        ['Empréstimos e Financiamentos',          /empresti|financiam|debentur|cce|cedula/],
+        ['Fornecedores',                          /fornecedor/],
+        ['Obrigações Fiscais e Tributárias',      /fiscal|imposto|tributo|inss|fgts|pis|cofins|irpj|csll/],
+        ['Provisões Trabalhistas',                /salario|trabalhist|folha|pessoal|ferias|decimo/],
+      ]),
+      pnc: grpLines(fixed['PNC'],[
+        ['Empréstimos e Financiamentos',          /empresti|financiam|debentur/],
+        ['Parcelamentos Fiscais',                 /parcelament|fiscal|tributo/],
+      ]),
+      pl: grpLines(fixed['PL'],[
+        ['Capital Social Integralizado',          /capital/],
+        ['Reservas de Capital e de Lucros',       /reserva/],
+        ['Lucros / (Prejuízos) Acumulados',       /resultado|lucro|prejuizo|retido|acumulad/],
+      ]),
+    }
   };
 }
 
@@ -1271,34 +1265,43 @@ function calcIndicesBP(bp,dre){
 // RENDER — BALANÇO PATRIMONIAL
 // ═══════════════════════════════════════════════
 function renderBP(bp){
-  const fv=v=>fmtMil(Math.abs(v));
-  const rows=grp=>grp.map(([nm,vl])=>`<div class="bp-row"><span class="bp-nm">${nm}</span><span class="bp-vl"${vl<0?' style="color:#ef4444"':''}>${vl<0?'('+fv(vl)+')':fv(vl)}</span></div>`).join('');
+  const fv=v=>v<0
+    ?`<span style="color:#ef4444">(${fmtMil(Math.abs(v))})</span>`
+    :fmtMil(v);
+
+  const lines=arr=>arr.map(({l,v})=>`
+    <div class="bp-ln">
+      <span class="bp-ln-nm">${l}</span>
+      <span class="bp-ln-vl">${fv(v)}</span>
+    </div>`).join('');
+
+  const balanced=Math.abs(bp.AT-bp.PT)<2;
 
   const ativoHtml=`
     <div class="bp-side">
-      <div class="bp-hdr">Ativo</div>
-      <div class="bp-grp">Ativo Circulante</div>
-      ${rows(bp.grpAC)}
-      <div class="bp-sub"><span>Total AC</span><span>${fv(bp.AC)}</span></div>
-      <div class="bp-grp">Ativo Não Circulante</div>
-      ${rows(bp.grpANC)}
-      <div class="bp-sub"><span>Total ANC</span><span>${fv(bp.ANC)}</span></div>
-      <div class="bp-tot"><span>TOTAL ATIVO</span><span>${fv(bp.AT)}</span></div>
+      <div class="bp-hdr">ATIVO <span class="bp-hdr-note">Em R$ mil</span></div>
+      <div class="bp-sec">Ativo Circulante</div>
+      ${lines(bp.ifrs.ac)}
+      <div class="bp-st"><span>Total do Ativo Circulante</span><span>${fmtMil(bp.AC)}</span></div>
+      <div class="bp-sec">Ativo Não Circulante</div>
+      ${lines(bp.ifrs.anc)}
+      <div class="bp-st"><span>Total do Ativo Não Circulante</span><span>${fmtMil(bp.ANC)}</span></div>
+      <div class="bp-gt"><span>TOTAL DO ATIVO</span><span>${fmtMil(bp.AT)}</span></div>
     </div>`;
 
   const passHtml=`
     <div class="bp-side">
-      <div class="bp-hdr">Passivo + Patrimônio Líquido</div>
-      <div class="bp-grp">Passivo Circulante</div>
-      ${rows(bp.grpPC)}
-      <div class="bp-sub"><span>Total PC</span><span>${fv(bp.PC)}</span></div>
-      <div class="bp-grp">Passivo Não Circulante</div>
-      ${rows(bp.grpPNC)}
-      <div class="bp-sub"><span>Total PNC</span><span>${fv(bp.PNC)}</span></div>
-      <div class="bp-grp">Patrimônio Líquido</div>
-      ${rows(bp.grpPL)}
-      <div class="bp-sub"><span>Total PL</span><span>${fv(bp.PL)}</span></div>
-      <div class="bp-tot"><span>TOTAL PASSIVO + PL</span><span>${fv(bp.PT)}</span></div>
+      <div class="bp-hdr">PASSIVO E PATRIMÔNIO LÍQUIDO <span class="bp-hdr-note">${balanced?'✓ Equilibrado':''}</span></div>
+      <div class="bp-sec">Passivo Circulante</div>
+      ${lines(bp.ifrs.pc)}
+      <div class="bp-st"><span>Total do Passivo Circulante</span><span>${fmtMil(bp.PC)}</span></div>
+      <div class="bp-sec">Passivo Não Circulante</div>
+      ${lines(bp.ifrs.pnc)}
+      <div class="bp-st"><span>Total do Passivo Não Circulante</span><span>${fmtMil(bp.PNC)}</span></div>
+      <div class="bp-sec">Patrimônio Líquido</div>
+      ${lines(bp.ifrs.pl)}
+      <div class="bp-st"><span>Total do Patrimônio Líquido</span><span>${fmtMil(bp.PL)}</span></div>
+      <div class="bp-gt"><span>TOTAL DO PASSIVO E PL</span><span>${fmtMil(bp.PT)}</span></div>
     </div>`;
 
   document.getElementById('bp-content').innerHTML=ativoHtml+passHtml;
