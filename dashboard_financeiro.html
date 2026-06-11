@@ -1070,6 +1070,18 @@ function parseBal(file){
           if(dottedRe.test(v)&&bsCat(v)) dataRows.push(row);
         }
 
+        // ── 3.5. Mantém somente contas analíticas (folha) — exclui cabeçalhos/subtotais ──
+        // Balancetes Protheus incluem tanto 1.01 (subtotal) quanto 1.01.001 (analítica).
+        // Se ambas têm saldo, a contagem duplica. Só contas sem filhos no dataset são usadas.
+        const allCodeSet=new Set(dataRows.map(r=>String((r||[])[classifCol]??'').trim()));
+        const leafRows=dataRows.filter(r=>{
+          const code=String((r||[])[classifCol]??'').trim();
+          for(const other of allCodeSet){
+            if(other!==code&&(other.startsWith(code+'.')||other.startsWith(code+'-'))) return false;
+          }
+          return true;
+        });
+
         // ── 4. Detecta colunas de saldo via linha de cabeçalho (busca em todas as linhas antes dos dados) ──
         const firstDataRowIdx=bestRR.findIndex(row=>dottedRe.test(String((row||[])[classifCol]??'').trim())&&bsCat(String((row||[])[classifCol]??'').trim()));
         let saldoAtualCol=-1, saldoAntCol=-1, descCol=-1;
@@ -1094,7 +1106,7 @@ function parseBal(file){
         // ── 5. Fallback posicional: conta votos de colunas numéricas nas linhas de dados ──
         if(saldoAtualCol===-1||saldoAntCol===-1){
           const numVotes={};
-          for(const row of dataRows.slice(0,30)){
+          for(const row of leafRows.slice(0,30)){
             for(let j=classifCol+1;j<row.length;j++){
               const v=row[j];
               if(v==null) continue;
@@ -1103,15 +1115,15 @@ function parseBal(file){
             }
           }
           const numCols=Object.entries(numVotes)
-            .filter(([,c])=>c>=Math.max(1,dataRows.length*0.1))
+            .filter(([,c])=>c>=Math.max(1,leafRows.length*0.1))
             .map(([j])=>parseInt(j)).sort((a,b)=>a-b);
           if(numCols.length>0&&saldoAntCol===-1) saldoAntCol=numCols[0];
           if(numCols.length>0&&saldoAtualCol===-1) saldoAtualCol=numCols[numCols.length-1];
         }
 
-        // ── 6. Extrai contas ──
+        // ── 6. Extrai contas (apenas folhas) ──
         const accounts=[];
-        for(const row of dataRows){
+        for(const row of leafRows){
           const classif=String(row[classifCol]??'').trim();
           const cat=bsCat(classif);
           if(!cat) continue;
@@ -1168,15 +1180,21 @@ function calcBP(accounts){
     if(byCat[a.cat]) byCat[a.cat].push(a);
   }
 
-  // Sign fix for Totvs: liabilities may be stored as negatives (credits)
-  const fixSign=(cat,arr)=>{
-    const total=arr.reduce((s,a)=>s+a.saldo,0);
-    if(cat!=='AC'&&cat!=='ANC'&&total<0) return arr.map(a=>({...a,saldo:-a.saldo}));
-    return arr;
-  };
+  // Detecção global de convenção de sinais via equação fundamental:
+  // Em convenção débito (padrão Protheus): ativos são débitos (+) e passivos/PL são créditos (−)
+  // → soma de TODAS as contas ≈ 0.  Se a soma relativa for < 10% do total absoluto, é convenção débito.
+  // Em convenção absoluta (ambos positivos): soma ≈ 2 × ativos.
+  const allAcnts=cats.flatMap(c=>byCat[c]);
+  const totalAbs=allAcnts.reduce((s,a)=>s+Math.abs(a.saldo),0);
+  const totalSum=allAcnts.reduce((s,a)=>s+a.saldo,0);
+  const debitConv=totalAbs>0&&Math.abs(totalSum)/totalAbs<0.10;
 
   const fixed={};
-  for(const cat of cats) fixed[cat]=fixSign(cat,byCat[cat]);
+  for(const cat of cats){
+    fixed[cat]=(debitConv&&cat!=='AC'&&cat!=='ANC')
+      ?byCat[cat].map(a=>({...a,saldo:-a.saldo}))
+      :byCat[cat];
+  }
 
   const sum=cat=>fixed[cat].reduce((s,a)=>s+a.saldo,0);
   const AC=sum('AC'), ANC=sum('ANC'), PC=sum('PC'), PNC=sum('PNC'), PL=sum('PL');
