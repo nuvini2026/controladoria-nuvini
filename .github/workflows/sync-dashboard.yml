@@ -1,0 +1,27 @@
+name: Sync dashboard from Google Drive
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar versão mais recente do Drive
+        run: |
+          curl -L "https://drive.google.com/uc?export=download&id=13PxVVrP4lFjHMmR8j9rj_ilDOR7FvCZX" -o index.html
+
+      - name: Commitar se houver mudança
+        run: |
+          git config user.name "dashboard-bot"
+          git config user.email "actions@github.com"
+          git add index.html
+          git diff --staged --quiet || git commit -m "Auto-sync dashboard a partir do Drive"
+          git push
