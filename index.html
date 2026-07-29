@@ -255,6 +255,10 @@ table.dre td.neg{color:var(--negative);}
 table.dre td.pos{color:var(--positive);}
 table.dre td.var-pos{color:var(--positive);font-weight:700;}
 table.dre td.var-neg{color:var(--negative);font-weight:700;}
+table.dre td.dre-av-cell{position:relative;}
+.dre-av{display:block;font-size:10px;font-weight:400;color:var(--text-soft);margin-top:1px;}
+.av-toggle{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-soft);margin:-4px 0 10px;cursor:pointer;user-select:none;}
+.av-toggle input{cursor:pointer;}
 
 /* Indicators panel */
 .indicators-section{
@@ -372,6 +376,7 @@ table.dre td.var-neg{color:var(--negative);font-weight:700;}
   <div class="dre-section">
     <h3>DRE Gerencial Comparativa (YoY) e Demonstração de Fluxo de Caixa</h3>
     <div class="chart-note" id="dre-note">Comparação por ano — 2026 considera apenas os meses disponíveis (jan a último mês do balancete)</div>
+    <label class="av-toggle"><input type="checkbox" id="av-toggle-input" checked onchange="toggleVerticalAnalysis()"> Mostrar análise vertical (% da receita líquida)</label>
     <div id="dre-wrap"></div>
   </div>
 
@@ -436,14 +441,14 @@ const DATA = {
    "ativo_nao_circulante": 4120712.59,
    "passivo_circulante": 4728444.2,
    "passivo_nao_circulante": 928175.58,
-   "patrimonio_liquido": -2666973.21,
+   "patrimonio_liquido": -2073399.79,
    "pl_breakdown": {
     "capital_e_reservas": -1523900.0,
     "dividendos_distribuicoes": 3214273.0,
-    "lucros_prejuizos_acumulados": -4357346.21,
+    "lucros_prejuizos_acumulados": -3763772.79,
     "nao_detalhado": 0.0
    },
-   "passivo_total_incl_pl": 2989646.57,
+   "passivo_total_incl_pl": 3583219.99,
    "resultado_exercicio_incluido": -296786.71
   },
   "indicadores": {
@@ -3184,14 +3189,14 @@ const DATA = {
    "ativo_nao_circulante": 3615989.34,
    "passivo_circulante": 10078703.69,
    "passivo_nao_circulante": 690663.95,
-   "patrimonio_liquido": 76089751.33,
+   "patrimonio_liquido": -861751.33,
    "pl_breakdown": {
     "capital_e_reservas": -256000.0,
     "dividendos_distribuicoes": 37870000.0,
-    "lucros_prejuizos_acumulados": 38475751.33,
+    "lucros_prejuizos_acumulados": -38475751.33,
     "nao_detalhado": 0.0
    },
-   "passivo_total_incl_pl": 86859118.97,
+   "passivo_total_incl_pl": 9907616.31,
    "resultado_exercicio_incluido": 7023073.02
   },
   "indicadores": {
@@ -6072,14 +6077,14 @@ const DATA = {
    "ativo_nao_circulante": 5487256.04,
    "passivo_circulante": 4807622.23,
    "passivo_nao_circulante": 269759.09,
-   "patrimonio_liquido": 7193593.61,
+   "patrimonio_liquido": -2268000.0,
    "pl_breakdown": {
-    "capital_e_reservas": -532252.0,
-    "dividendos_distribuicoes": 26224129.48,
-    "lucros_prejuizos_acumulados": -18498283.87,
+    "capital_e_reservas": -532000.0,
+    "dividendos_distribuicoes": 29524000.0,
+    "lucros_prejuizos_acumulados": -31260000.0,
     "nao_detalhado": 0.0
    },
-   "passivo_total_incl_pl": 12270974.93,
+   "passivo_total_incl_pl": 2809381.32,
    "resultado_exercicio_incluido": 6380841.41
   },
   "indicadores": {
@@ -8934,14 +8939,14 @@ const DATA = {
    "ativo_nao_circulante": 8414136.59,
    "passivo_circulante": 6590429.4,
    "passivo_nao_circulante": 7284925.07,
-   "patrimonio_liquido": 3151860.16,
+   "patrimonio_liquido": 1701192.65,
    "pl_breakdown": {
     "capital_e_reservas": -100000.0,
-    "dividendos_distribuicoes": 3507090.38,
-    "lucros_prejuizos_acumulados": 260577.13,
-    "nao_detalhado": -515807.35
+    "dividendos_distribuicoes": 3507000.0,
+    "lucros_prejuizos_acumulados": -1705807.35,
+    "nao_detalhado": 0.0
    },
-   "passivo_total_incl_pl": 17027214.63,
+   "passivo_total_incl_pl": 15576547.12,
    "resultado_exercicio_incluido": 451000.09
   },
   "indicadores": {
@@ -11755,14 +11760,14 @@ const DATA = {
    "ativo_nao_circulante": 10745961.98,
    "passivo_circulante": 4152947.95,
    "passivo_nao_circulante": 3313431.75,
-   "patrimonio_liquido": 5367881.49,
+   "patrimonio_liquido": -4461578.23,
    "pl_breakdown": {
     "capital_e_reservas": -13277693.44,
     "dividendos_distribuicoes": 1870000.0,
-    "lucros_prejuizos_acumulados": 16513437.15,
-    "nao_detalhado": 262137.78
+    "lucros_prejuizos_acumulados": 6946115.21,
+    "nao_detalhado": 0.0
    },
-   "passivo_total_incl_pl": 12834261.19,
+   "passivo_total_incl_pl": 3004801.47,
    "resultado_exercicio_incluido": 4914729.86
   },
   "indicadores": {
@@ -14540,14 +14545,14 @@ const DATA = {
    "ativo_nao_circulante": 16945616.36,
    "passivo_circulante": 16433348.33,
    "passivo_nao_circulante": 417816.0,
-   "patrimonio_liquido": 3614177.32,
+   "patrimonio_liquido": -11858000.0,
    "pl_breakdown": {
-    "capital_e_reservas": -5172220.0,
-    "dividendos_distribuicoes": 5354515.8,
-    "lucros_prejuizos_acumulados": 3431881.52,
+    "capital_e_reservas": -5172000.0,
+    "dividendos_distribuicoes": 7455000.0,
+    "lucros_prejuizos_acumulados": -14141000.0,
     "nao_detalhado": 0.0
    },
-   "passivo_total_incl_pl": 20465341.65,
+   "passivo_total_incl_pl": 4993164.33,
    "resultado_exercicio_incluido": 8786397.33
   },
   "indicadores": {
@@ -17331,13 +17336,13 @@ const DATA = {
    "ativo_nao_circulante": 49329672.9,
    "passivo_circulante": 46791495.8,
    "passivo_nao_circulante": 12904771.44,
-   "patrimonio_liquido": 92750290.70,
-   "passivo_total_incl_pl": 152446557.94,
+   "patrimonio_liquido": -19821536.70,
+   "passivo_total_incl_pl": 39874730.54,
    "pl_breakdown": {
-    "capital_e_reservas": -20862065.44,
-    "dividendos_distribuicoes": 78040008.66,
-    "lucros_prejuizos_acumulados": 35826017.05,
-    "nao_detalhado": -253669.57
+    "capital_e_reservas": -20861593.44,
+    "dividendos_distribuicoes": 83440273.0,
+    "lucros_prejuizos_acumulados": -82400216.26,
+    "nao_detalhado": 0.0
    },
    "resultado_exercicio_incluido": 27259255.0
   },
@@ -20311,7 +20316,7 @@ const DATA = {
   ]
  },
  "_meta": {
-  "gerado_em": "28/07/2026 19:06"
+  "gerado_em": "28/07/2026 20:05"
  }
 };
 /*__DATA_END__*/
@@ -20345,6 +20350,7 @@ let current = "combinado";
 /*__CURRENT_END__*/
 let yearFilter = "all";
 let monthFilter = "ytd";
+let showVerticalAnalysis = true;
 let charts = {};
 
 function toggleShareMenu(){
@@ -20586,22 +20592,28 @@ function renderPLBreakdown(){
   const asOfNote = asOfPeriod
     ? `<div class="indicator-desc" style="margin-top:8px;">Posição em: ${monthLabel(asOfPeriod)}${rollback ? ` (ajustado a partir do balancete mais recente, ${monthLabel(latestPeriod)}, revertendo ${fmtBRL(rollback,true)} de resultado dos meses posteriores)` : ""}</div>`
     : "";
+  const capacidadeDistribuicao = -((b.lucros_prejuizos_acumulados||0) + (b.dividendos_distribuicoes||0));
   grid.innerHTML = keys.map(k=>{
-    const v = b[k]||0;
+    const v = -(b[k]||0); // convenção invertida: negativo exibido como positivo (verde) e vice-versa
     return `<div class="indicator-card">
       <div class="indicator-label">${labels[k]}</div>
       <div class="indicator-value ${v>=0?'positive':'negative'}">${fmtBRL(v,true)}</div>
       <div class="indicator-desc">${descs[k]}</div>
     </div>`;
   }).join("") + `<div class="indicator-card" style="background:var(--cyan-light);border-color:var(--cyan);">
-      <div class="indicator-label">Total Patrimônio Líquido</div>
-      <div class="indicator-value ${patrimonioLiquido>=0?'positive':'negative'}">${fmtBRL(patrimonioLiquido,true)}</div>
-      <div class="indicator-desc">soma das linhas acima</div>
+      <div class="indicator-label">Lucro Disponível para Distribuição</div>
+      <div class="indicator-value ${capacidadeDistribuicao>=0?'positive':'negative'}">${fmtBRL(capacidadeDistribuicao,true)}</div>
+      <div class="indicator-desc">lucros/prejuízos acumulados + dividendos já distribuídos — indica se ainda há lucro acumulado suficiente para novas distribuições</div>
     </div>` + asOfNote;
 }
 
 function sumField(months, field){
   return months.reduce((a,m)=>a+(m[field]||0), 0);
+}
+
+function toggleVerticalAnalysis(){
+  showVerticalAnalysis = document.getElementById('av-toggle-input').checked;
+  renderDRETable();
 }
 
 function renderDRETable(){
@@ -20734,7 +20746,13 @@ function renderDRETable(){
       const isMargin = r.type==="margin";
       const text = isMargin ? fmtPct(val) : fmtBRL(val);
       const cls = (typeof val === 'number' && val<0) ? 'neg' : '';
-      html += `<td class="${cls}">${text}</td>`;
+      let avHtml = "";
+      if(!isMargin && showVerticalAnalysis){
+        const receitaCol = derived[i].__receita;
+        const avPct = (receitaCol && typeof val === 'number') ? (val/receitaCol*100) : null;
+        avHtml = `<span class="dre-av">${avPct===null? "" : fmtPct(avPct)+" da receita"}</span>`;
+      }
+      html += `<td class="${cls} dre-av-cell">${text}${avHtml}</td>`;
     });
     if(compCol){
       const isMargin = r.type==="margin";
